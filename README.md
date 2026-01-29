@@ -51,16 +51,26 @@ For precise control, mark scripts with `data-category`:
 
 #### Frontend SDK
 
-**NEW: Tutto il codice SDK è ora consolidato in un singolo file!**
+**NEW: SDK disponibile in TypeScript E JavaScript!**
 
+Due versioni complete dello stesso SDK:
+
+**Versione TypeScript**:
 - **File principale**: `src/cmp.ts` - Tutto in un unico file TypeScript
 - **Vanilla TypeScript** (no dependencies)
 - **< 16kb minified** (gzipped ~6-7kb)
 - **ES2015 compatible**
-- Auto-blocks scripts before consent
+- Type safety completo
+
+**Versione JavaScript** 🆕:
+- **File principale**: `src/cmp.js` - Versione JavaScript pura
+- **Nessuna compilazione richiesta** - Usa direttamente nel browser
+- **JSDoc completo** per documentazione tipi
+- **Stesse dimensioni e funzionalità** della versione TypeScript
+- **Vedi [JAVASCRIPT.md](JAVASCRIPT.md) per documentazione completa**
 
 Il file consolidato include:
-- Type definitions - Tutte le interfacce TypeScript
+- Type definitions - Tutte le interfacce (TypeScript) o JSDoc (JavaScript)
 - `ConsentStorage` - localStorage + cookie persistence
 - `ConsentManager` - Consent state management
 - `ScriptBlocker` - Automatic script blocking/unblocking
@@ -68,7 +78,9 @@ Il file consolidato include:
 - `BannerUI` - Banner UI with customization modal
 - `RSCMP` - Main class with auto-initialization
 
-**Per maggiori informazioni su come usare il file consolidato, vedi [USAGE.md](USAGE.md)**
+**Documentazione**:
+- TypeScript: vedi [USAGE.md](USAGE.md)
+- JavaScript: vedi [JAVASCRIPT.md](JAVASCRIPT.md)
 
 Struttura legacy (ancora presente per riferimento):
 - `src/sdk/` - File separati originali (deprecati)
@@ -148,19 +160,28 @@ npm run dev:backend
 #### Build Commands
 
 ```bash
-# Build SDK (development)
+# Build TypeScript SDK (development)
 npm run build:sdk:dev
 
-# Build SDK (production, minified)
+# Build TypeScript SDK (production, minified)
 npm run build:sdk:prod
 
-# Build both SDK versions
+# Build both TypeScript SDK versions
 npm run build:sdk
+
+# Build JavaScript SDK (development)
+npm run build:sdk:js:dev
+
+# Build JavaScript SDK (production, minified)
+npm run build:sdk:js:prod
+
+# Build both JavaScript SDK versions
+npm run build:sdk:js
 
 # Build backend
 npm run build:backend
 
-# Build everything
+# Build everything (TypeScript SDK + JavaScript SDK + Backend)
 npm run build
 ```
 
