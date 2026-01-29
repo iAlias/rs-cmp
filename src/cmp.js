@@ -1238,6 +1238,20 @@ class BannerUI {
             flex-direction: column;
           }
         }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .rs-cmp-modal-content {
+            animation: none;
+          }
+          
+          .rs-cmp-category:hover {
+            transform: none;
+          }
+          
+          .rs-cmp-modal-buttons button:hover {
+            transform: none;
+          }
+        }
       `;
       document.head.appendChild(style);
     }

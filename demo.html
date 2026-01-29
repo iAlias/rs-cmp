@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo RS-CMP - Italian CMP with Improved Design</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 42px;
+            text-align: center;
+        }
+        .info-box {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        .info-box h2 {
+            margin-top: 0;
+            font-size: 24px;
+        }
+        .info-box ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .info-box li {
+            margin: 8px 0;
+        }
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Demo RS-CMP</h1>
+        
+        <div class="info-box">
+            <h2>Funzionalità Implementate</h2>
+            <ul>
+                <li>✅ <strong>Lingua Italiana</strong>: Il CMP è ora completamente in italiano per impostazione predefinita</li>
+                <li>✅ <strong>Design Migliorato</strong>: Gradiente di sfondo, ombre profonde, animazioni fluide</li>
+                <li>✅ <strong>Larghezza Modale 50vw</strong>: Il popup di personalizzazione ha una larghezza minima del 50% della viewport</li>
+                <li>✅ <strong>Hover Effects</strong>: Effetti di transizione sulle card delle categorie</li>
+                <li>✅ <strong>Bottoni Moderni</strong>: Gradiente blu, ombre e animazioni hover</li>
+                <li>✅ <strong>Backdrop Blur</strong>: Effetto sfocatura sullo sfondo del modale</li>
+                <li>✅ <strong>Responsive</strong>: Design ottimizzato per mobile (90vw su schermi piccoli)</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h2>Test del CMP</h2>
+            <p>Clicca sui pulsanti qui sotto per testare le diverse funzionalità del CMP:</p>
+            
+            <button onclick="showBanner()">Mostra Banner Cookie</button>
+            <button onclick="resetConsent()">Reset Consenso</button>
+            <button onclick="checkConsent()">Verifica Consenso</button>
+        </div>
+
+        <div id="status" class="status">
+            <strong>Stato:</strong> <span id="status-text">Pronto per il test</span>
+        </div>
+    </div>
+
+    <!-- Load the RS-CMP SDK -->
+    <script src="dist/cmp.js"></script>
+    
+    <script>
+        // Initialize CMP with demo configuration
+        const demoConfig = {
+            siteId: 'demo-site',
+            siteName: 'Demo Site',
+            domain: 'example.com',
+            policyVersion: '1.0',
+            banner: {
+                position: 'bottom',
+                layout: 'bar',
+                primaryColor: '#2563eb',
+                backgroundColor: '#ffffff',
+                textColor: '#1f2937',
+                buttonTextColor: '#ffffff',
+                showLogo: false
+            },
+            categories: [
+                {
+                    id: 'necessary',
+                    name: 'Cookie Necessari',
+                    description: 'Necessari per il funzionamento del sito',
+                    required: true,
+                    enabled: true
+                },
+                {
+                    id: 'analytics',
+                    name: 'Cookie Analitici',
+                    description: 'Ci aiutano a capire come viene utilizzato il sito',
+                    required: false,
+                    enabled: false
+                },
+                {
+                    id: 'marketing',
+                    name: 'Cookie di Marketing',
+                    description: 'Utilizzati per pubblicità personalizzate',
+                    required: false,
+                    enabled: false
+                },
+                {
+                    id: 'preferences',
+                    name: 'Cookie di Preferenze',
+                    description: 'Ricordano le tue preferenze',
+                    required: false,
+                    enabled: false
+                }
+            ],
+            translations: {
+                it: {
+                    title: 'Gestione Cookie',
+                    description: 'Utilizziamo i cookie per offrirti la migliore esperienza sul nostro sito web. Puoi accettare tutti i cookie, rifiutarli o personalizzare le tue preferenze.',
+                    acceptAll: 'Accetta tutto',
+                    rejectAll: 'Rifiuta tutto',
+                    customize: 'Personalizza',
+                    save: 'Salva preferenze',
+                    close: 'Chiudi',
+                    categories: {
+                        necessary: {
+                            name: 'Cookie Necessari',
+                            description: 'Questi cookie sono essenziali per il corretto funzionamento del sito web e non possono essere disabilitati.'
+                        },
+                        analytics: {
+                            name: 'Cookie Analitici',
+                            description: 'Ci aiutano a comprendere come i visitatori interagiscono con il sito web, raccogliendo e analizzando informazioni in forma anonima.'
+                        },
+                        marketing: {
+                            name: 'Cookie di Marketing',
+                            description: 'Utilizzati per mostrare pubblicità personalizzate in base ai tuoi interessi e misurare l\'efficacia delle campagne pubblicitarie.'
+                        },
+                        preferences: {
+                            name: 'Cookie di Preferenze',
+                            description: 'Permettono al sito di ricordare le tue scelte (come lingua o regione) per offrirti un\'esperienza più personalizzata.'
+                        }
+                    }
+                }
+            }
+        };
+
+        // Create CMP instance
+        const cmp = new RSCMP.default();
+        
+        // Override config loading to use demo config
+        cmp.config = demoConfig;
+
+        // Helper functions for demo
+        function showBanner() {
+            resetConsent();
+            setTimeout(() => {
+                cmp.bannerUI.show(demoConfig);
+                updateStatus('Banner mostrato! Clicca "Personalizza" per vedere il nuovo design del modale.');
+            }, 100);
+        }
+
+        function resetConsent() {
+            localStorage.removeItem('rs-cmp-consent');
+            document.cookie = 'rs-cmp-consent=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            cmp.bannerUI.hide();
+            updateStatus('Consenso resettato. Il banner verrà mostrato di nuovo.');
+        }
+
+        function checkConsent() {
+            const consent = cmp.consentStorage.getConsent();
+            if (consent) {
+                const categories = consent.categories;
+                const info = `Consenso attivo:\n- Necessari: ${categories.necessary}\n- Analitici: ${categories.analytics}\n- Marketing: ${categories.marketing}\n- Preferenze: ${categories.preferences}\n- Data: ${consent.timestamp}`;
+                updateStatus(info);
+            } else {
+                updateStatus('Nessun consenso salvato.');
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status-text').textContent = message;
+        }
+
+        // Show banner on page load if no consent exists
+        window.addEventListener('load', () => {
+            const existingConsent = cmp.consentStorage.getConsent();
+            if (!existingConsent) {
+                setTimeout(() => {
+                    cmp.bannerUI.show(demoConfig);
+                    updateStatus('Banner automaticamente mostrato. Non c\'è consenso salvato.');
+                }, 500);
+            } else {
+                updateStatus('Consenso già salvato. Clicca "Reset Consenso" per testare il banner.');
+            }
+        });
+    </script>
+</body>
+</html>
