@@ -10,3 +10,4 @@ coverage/
 *.swo
 .cache/
 tmp/
+demo.html
