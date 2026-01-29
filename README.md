@@ -49,19 +49,29 @@ For precise control, mark scripts with `data-category`:
 
 ### 🏗️ Architecture
 
-#### Frontend SDK (`src/sdk/`)
+#### Frontend SDK
+
+**NEW: Tutto il codice SDK è ora consolidato in un singolo file!**
+
+- **File principale**: `src/cmp.ts` - Tutto in un unico file TypeScript
 - **Vanilla TypeScript** (no dependencies)
-- **< 40kb minified** (gzipped)
+- **< 16kb minified** (gzipped ~6-7kb)
 - **ES2015 compatible**
 - Auto-blocks scripts before consent
 
-Components:
-- `index.ts` - Main entry point
-- `consent-manager.ts` - Consent state management
-- `consent-storage.ts` - localStorage + cookie persistence
-- `banner-ui.ts` - Banner UI with customization modal
-- `script-blocker.ts` - Automatic script blocking/unblocking
-- `google-consent-mode.ts` - Google Consent Mode v2 integration
+Il file consolidato include:
+- Type definitions - Tutte le interfacce TypeScript
+- `ConsentStorage` - localStorage + cookie persistence
+- `ConsentManager` - Consent state management
+- `ScriptBlocker` - Automatic script blocking/unblocking
+- `GoogleConsentMode` - Google Consent Mode v2 integration
+- `BannerUI` - Banner UI with customization modal
+- `RSCMP` - Main class with auto-initialization
+
+**Per maggiori informazioni su come usare il file consolidato, vedi [USAGE.md](USAGE.md)**
+
+Struttura legacy (ancora presente per riferimento):
+- `src/sdk/` - File separati originali (deprecati)
 
 #### Backend API (`src/backend/`)
 - **Fastify** - Fast, low-overhead web framework
