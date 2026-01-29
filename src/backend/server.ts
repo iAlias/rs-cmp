@@ -74,10 +74,19 @@ fastify.get('/v1/site/:id/config', async (request, reply) => {
  * Log user consent
  */
 fastify.post('/v1/consent', async (request, reply) => {
-  const { siteId, categories, timestamp, version } = request.body as any;
+  const { siteId, categories, timestamp, version, tcfString } = request.body as any;
 
   if (!siteId || !categories || !timestamp) {
     return reply.status(400).send({ error: 'Missing required fields' });
+  }
+
+  // Validate TCF string format if provided
+  if (tcfString && typeof tcfString === 'string') {
+    // TCF strings should start with "CP" and be base64url encoded
+    if (!tcfString.startsWith('CP')) {
+      fastify.log.warn('Invalid TCF string format: does not start with CP');
+      // Continue anyway but log warning
+    }
   }
 
   try {
@@ -87,9 +96,9 @@ fastify.post('/v1/consent', async (request, reply) => {
 
     // Insert consent log
     await pool.query(
-      `INSERT INTO consents (site_id, timestamp, categories_json, ip_hash, version)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [siteId, timestamp, JSON.stringify(categories), ipHash, version]
+      `INSERT INTO consents (site_id, timestamp, categories_json, ip_hash, version, tcf_string)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [siteId, timestamp, JSON.stringify(categories), ipHash, version, tcfString || null]
     );
 
     return reply.send({ success: true });
@@ -134,6 +143,56 @@ fastify.get('/v1/consent/export', async (request, reply) => {
     reply.header('Content-Type', 'text/csv');
     reply.header('Content-Disposition', `attachment; filename="consents-${siteId}.csv"`);
     return reply.send(csv);
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /v1/cookies/report
+ * Log detected cookies from automatic cookie scanner
+ */
+fastify.post('/v1/cookies/report', async (request, reply) => {
+  const { siteId, timestamp, cookies, autoCategories } = request.body as any;
+
+  if (!siteId || !cookies) {
+    return reply.status(400).send({ error: 'Missing required fields' });
+  }
+
+  try {
+    // Store cookie scan report
+    await pool.query(
+      `INSERT INTO cookie_scans (site_id, timestamp, cookies_json, categories_json)
+       VALUES ($1, $2, $3, $4)`,
+      [siteId, timestamp || new Date().toISOString(), JSON.stringify(cookies), JSON.stringify(autoCategories || {})]
+    );
+
+    return reply.send({ success: true });
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /v1/cookies/report/:siteId
+ * Get latest cookie scan report for a site
+ */
+fastify.get('/v1/cookies/report/:siteId', async (request, reply) => {
+  const { siteId } = request.params as { siteId: string };
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM cookie_scans WHERE site_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+      [siteId]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.status(404).send({ error: 'No cookie scan report found' });
+    }
+
+    return reply.send(result.rows[0]);
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Internal server error' });

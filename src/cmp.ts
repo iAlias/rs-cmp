@@ -70,6 +70,54 @@ export type ConsentEventType = 'consentUpdated' | 'bannerShown' | 'bannerClosed'
 export type ConsentEventHandler = (data: any) => void;
 
 // ============================================================================
+// TCF 2.2 TYPES
+// ============================================================================
+
+export interface TCFVendor {
+  id: number;
+  name: string;
+  purposes: number[];
+  specialPurposes: number[];
+  features: number[];
+  specialFeatures: number[];
+}
+
+export interface TCFPurpose {
+  id: number;
+  name: string;
+  description: string;
+}
+
+export interface TCFData {
+  tcString: string;
+  tcfPolicyVersion: number;
+  cmpId: number;
+  cmpVersion: number;
+  gdprApplies: boolean;
+  purposeConsents: { [purposeId: number]: boolean };
+  vendorConsents: { [vendorId: number]: boolean };
+}
+
+// ============================================================================
+// COOKIE SCANNER TYPES
+// ============================================================================
+
+export interface DetectedCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  category?: string;
+  expires?: string;
+}
+
+export interface CookieScanReport {
+  timestamp: string;
+  cookies: DetectedCookie[];
+  autoCategories: { [cookieName: string]: string };
+}
+
+// ============================================================================
 // CONSENT STORAGE
 // ============================================================================
 
@@ -455,6 +503,600 @@ class GoogleConsentMode {
       };
       (window as any).gtag('js', new Date());
     }
+  }
+}
+
+// ============================================================================
+// TCF 2.2 MANAGER
+// ============================================================================
+
+class TCFManager {
+  private tcfVersion = 2.2;
+  private cmpId = 1; // Should be assigned by IAB
+  private cmpVersion = 1;
+  private vendors: Map<number, TCFVendor> = new Map();
+  private purposes: Map<number, TCFPurpose> = new Map();
+  private consentManager: ConsentManager;
+  private tcfData: TCFData | null = null;
+  private eventListeners: Map<number, (data: any, success: boolean) => void> = new Map();
+  private nextListenerId = 0;
+
+  constructor(consentManager: ConsentManager) {
+    this.consentManager = consentManager;
+    this.initializeDefaultPurposes();
+    this.initializeDefaultVendors();
+    this.setupTCFAPI();
+  }
+
+  /**
+   * Initialize IAB TCF 2.2 standard purposes
+   */
+  private initializeDefaultPurposes(): void {
+    // Standard IAB TCF 2.2 Purposes
+    this.purposes.set(1, {
+      id: 1,
+      name: 'Store and/or access information on a device',
+      description: 'Cookies, device identifiers, or other information can be stored or accessed on your device for the purposes presented to you.',
+    });
+    this.purposes.set(2, {
+      id: 2,
+      name: 'Select basic ads',
+      description: 'Ads can be shown to you based on the content you\'re viewing, the app you\'re using, your approximate location, or your device type.',
+    });
+    this.purposes.set(3, {
+      id: 3,
+      name: 'Create a personalised ads profile',
+      description: 'A profile can be built about you and your interests to show you personalised ads that are relevant to you.',
+    });
+    this.purposes.set(4, {
+      id: 4,
+      name: 'Select personalised ads',
+      description: 'Personalised ads can be shown to you based on a profile about you.',
+    });
+    this.purposes.set(7, {
+      id: 7,
+      name: 'Measure ad performance',
+      description: 'The performance and effectiveness of ads that you see or interact with can be measured.',
+    });
+    this.purposes.set(8, {
+      id: 8,
+      name: 'Measure content performance',
+      description: 'The performance and effectiveness of content that you see or interact with can be measured.',
+    });
+    this.purposes.set(9, {
+      id: 9,
+      name: 'Apply market research to generate audience insights',
+      description: 'Market research can be used to learn more about the audiences who visit sites/apps and view ads.',
+    });
+    this.purposes.set(10, {
+      id: 10,
+      name: 'Develop and improve products',
+      description: 'Your data can be used to improve existing systems and software, and to develop new products.',
+    });
+  }
+
+  /**
+   * Initialize common vendors (Google, Meta, etc.)
+   */
+  private initializeDefaultVendors(): void {
+    // Google
+    this.vendors.set(755, {
+      id: 755,
+      name: 'Google Advertising Products',
+      purposes: [1, 2, 3, 4, 7, 8, 9, 10],
+      specialPurposes: [1, 2],
+      features: [1, 2, 3],
+      specialFeatures: [1, 2],
+    });
+    
+    // Meta (Facebook)
+    this.vendors.set(138, {
+      id: 138,
+      name: 'Meta Platforms Ireland Limited',
+      purposes: [1, 2, 3, 4, 7, 9, 10],
+      specialPurposes: [1, 2],
+      features: [1, 2],
+      specialFeatures: [1],
+    });
+  }
+
+  /**
+   * Setup window.__tcfapi according to IAB TCF 2.2 spec
+   */
+  private setupTCFAPI(): void {
+    if (typeof window !== 'undefined') {
+      (window as any).__tcfapi = (
+        command: string,
+        version: number,
+        callback: (data: any, success: boolean) => void,
+        parameter?: any
+      ) => {
+        switch (command) {
+          case 'ping':
+            callback(
+              {
+                gdprApplies: true,
+                cmpLoaded: true,
+                cmpStatus: 'loaded',
+                displayStatus: 'visible',
+                apiVersion: '2.2',
+                cmpVersion: this.cmpVersion,
+                cmpId: this.cmpId,
+                gvlVersion: 1,
+                tcfPolicyVersion: 2,
+              },
+              true
+            );
+            break;
+
+          case 'getTCData':
+            this.getTCData(callback, parameter);
+            break;
+
+          case 'getVendorList':
+            this.getVendorList(callback, parameter);
+            break;
+
+          case 'addEventListener':
+            this.addEventListener(callback);
+            break;
+
+          case 'removeEventListener':
+            this.removeEventListener(callback, parameter);
+            break;
+
+          default:
+            callback({ msg: 'Command not supported' }, false);
+        }
+      };
+    }
+  }
+
+  /**
+   * Get TC Data for __tcfapi
+   */
+  private getTCData(callback: (data: any, success: boolean) => void, parameter?: any): void {
+    const consent = this.consentManager.getConsent();
+    const tcData = this.generateTCData(consent?.categories);
+    
+    callback(tcData, true);
+  }
+
+  /**
+   * Get vendor list for __tcfapi
+   */
+  private getVendorList(callback: (data: any, success: boolean) => void, parameter?: any): void {
+    const vendorList = {
+      gvlSpecificationVersion: 2,
+      vendorListVersion: 1,
+      tcfPolicyVersion: 2,
+      lastUpdated: new Date().toISOString(),
+      purposes: Array.from(this.purposes.values()),
+      vendors: Array.from(this.vendors.values()),
+    };
+    
+    callback(vendorList, true);
+  }
+
+  /**
+   * Add event listener for __tcfapi
+   */
+  private addEventListener(callback: (data: any, success: boolean) => void): void {
+    // Assign a unique listener ID
+    const listenerId = this.nextListenerId++;
+    this.eventListeners.set(listenerId, callback);
+    
+    // Listen for consent changes
+    const handler = () => {
+      const consent = this.consentManager.getConsent();
+      const tcData = this.generateTCData(consent?.categories);
+      // Add listener ID to the response
+      tcData.listenerId = listenerId;
+      callback(tcData, true);
+    };
+    
+    this.consentManager.on('consentUpdated', handler);
+    
+    // Send initial data
+    const consent = this.consentManager.getConsent();
+    const tcData = this.generateTCData(consent?.categories);
+    tcData.listenerId = listenerId;
+    callback(tcData, true);
+  }
+
+  /**
+   * Remove event listener for __tcfapi
+   */
+  private removeEventListener(callback: (data: any, success: boolean) => void, listenerId?: number): void {
+    if (listenerId !== undefined) {
+      this.eventListeners.delete(listenerId);
+      callback({ success: true }, true);
+    } else {
+      callback({ success: false, msg: 'Listener ID required' }, false);
+    }
+  }
+
+  /**
+   * Generate TC Data from consent categories
+   */
+  private generateTCData(categories?: ConsentCategories): any {
+    if (!categories) {
+      categories = {
+        necessary: true,
+        analytics: false,
+        marketing: false,
+        preferences: false,
+      };
+    }
+
+    // Map consent categories to IAB purposes
+    const purposeConsents: { [key: number]: boolean } = {
+      1: categories.necessary, // Store and access information
+      2: categories.marketing, // Select basic ads
+      3: categories.marketing, // Create personalised ads profile
+      4: categories.marketing, // Select personalised ads
+      7: categories.marketing, // Measure ad performance
+      8: categories.analytics, // Measure content performance
+      9: categories.analytics, // Apply market research
+      10: categories.preferences, // Develop and improve products
+    };
+
+    // Generate vendor consents based on purposes
+    const vendorConsents: { [key: number]: boolean } = {};
+    this.vendors.forEach((vendor, vendorId) => {
+      // Vendor is consented if all its purposes are consented
+      const allPurposesConsented = vendor.purposes.every(
+        (purposeId) => purposeConsents[purposeId]
+      );
+      vendorConsents[vendorId] = allPurposesConsented;
+    });
+
+    const tcData = {
+      tcString: this.generateTCString(purposeConsents, vendorConsents),
+      tcfPolicyVersion: 2,
+      cmpId: this.cmpId,
+      cmpVersion: this.cmpVersion,
+      gdprApplies: true,
+      eventStatus: 'useractioncomplete',
+      cmpStatus: 'loaded',
+      listenerId: undefined,
+      isServiceSpecific: true,
+      useNonStandardStacks: false,
+      publisherCC: 'IT', // TODO: Make this configurable per site
+      purposeOneTreatment: false,
+      outOfBand: {
+        allowedVendors: {},
+        disclosedVendors: {},
+      },
+      purpose: {
+        consents: purposeConsents,
+        legitimateInterests: {},
+      },
+      vendor: {
+        consents: vendorConsents,
+        legitimateInterests: {},
+      },
+      specialFeatureOptins: {},
+      publisher: {
+        consents: {},
+        legitimateInterests: {},
+        customPurpose: {
+          consents: {},
+          legitimateInterests: {},
+        },
+        restrictions: {},
+      },
+    };
+
+    this.tcfData = {
+      tcString: tcData.tcString,
+      tcfPolicyVersion: tcData.tcfPolicyVersion,
+      cmpId: tcData.cmpId,
+      cmpVersion: tcData.cmpVersion,
+      gdprApplies: tcData.gdprApplies,
+      purposeConsents,
+      vendorConsents,
+    };
+
+    return tcData;
+  }
+
+  /**
+   * Generate TCF String (TC String encoding according to IAB spec)
+   * 
+   * WARNING: This is a SIMPLIFIED implementation for demonstration purposes.
+   * For production use with real IAB vendors (Google, Meta, etc.), you MUST use
+   * the official @iabtcf/core library for proper IAB-compliant TC String encoding.
+   * 
+   * The current implementation creates a custom JSON-based encoding that will NOT
+   * work with real ad platforms. Install @iabtcf/core and use TCString.encode()
+   * for production deployments.
+   * 
+   * @see https://github.com/InteractiveAdvertisingBureau/iabtcf-es
+   */
+  generateTCString(
+    purposeConsents: { [key: number]: boolean },
+    vendorConsents: { [key: number]: boolean }
+  ): string {
+    // Simplified TCF String generation for demonstration
+    // TODO: Replace with @iabtcf/core library for production
+    
+    const version = 2; // TCF version 2
+    const created = Math.floor(Date.now() / 100); // Deciseconds since epoch
+    const updated = created;
+    
+    // Convert consents to bit strings
+    const purposeBits = Array.from({ length: 24 }, (_, i) => 
+      purposeConsents[i + 1] ? '1' : '0'
+    ).join('');
+    
+    const vendorBits = Array.from({ length: 1000 }, (_, i) => 
+      vendorConsents[i + 1] ? '1' : '0'
+    ).join('');
+    
+    // Create a simple encoded string (simplified - not full IAB spec)
+    // In production, use @iabtcf/core library for proper encoding
+    const data = {
+      v: version,
+      c: created,
+      u: updated,
+      p: purposeBits,
+      vl: vendorBits.substring(0, 100), // Limit for simplicity
+    };
+    
+    // Base64 encode (simplified)
+    const jsonStr = JSON.stringify(data);
+    const b64 = typeof btoa !== 'undefined' ? btoa(jsonStr) : Buffer.from(jsonStr).toString('base64');
+    
+    // Add CP prefix (Consent Purposes) as per IAB spec
+    return `CP${b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')}`;
+  }
+
+  /**
+   * Get current TCF data
+   */
+  getTCFData(): TCFData | null {
+    return this.tcfData;
+  }
+
+  /**
+   * Update TCF data when consent changes
+   */
+  updateFromConsent(categories: ConsentCategories): void {
+    this.generateTCData(categories);
+  }
+}
+
+// ============================================================================
+// COOKIE SCANNER
+// ============================================================================
+
+class CookieScanner {
+  private cookies: Map<string, DetectedCookie> = new Map();
+  private scanInterval: number | null = null;
+  private mutationObserver: MutationObserver | null = null;
+  private onScanComplete?: (report: CookieScanReport) => void;
+
+  constructor() {
+    this.initializeCookieDatabase();
+  }
+
+  /**
+   * Initialize database of known cookies for categorization
+   */
+  private initializeCookieDatabase(): void {
+    // This would typically be a much larger database
+    // or call to an external categorization service
+  }
+
+  /**
+   * Scan all cookies on the page
+   */
+  async scanCookies(): Promise<CookieScanReport> {
+    // 1. Detect all first-party cookies
+    this.detectCurrentCookies();
+
+    // 2. Start monitoring for new cookies (only if not already watching)
+    this.watchCookieChanges();
+
+    // 3. Categorize cookies automatically
+    const categorized = this.categorizeCookies();
+
+    // 4. Create report
+    const report: CookieScanReport = {
+      timestamp: new Date().toISOString(),
+      cookies: Array.from(this.cookies.values()),
+      autoCategories: categorized,
+    };
+
+    // 5. Call callback if set
+    if (this.onScanComplete) {
+      this.onScanComplete(report);
+    }
+
+    return report;
+  }
+
+  /**
+   * Detect current cookies from document.cookie
+   */
+  private detectCurrentCookies(): void {
+    if (typeof document === 'undefined') return;
+
+    const cookieString = document.cookie;
+    if (!cookieString) return;
+
+    const cookiePairs = cookieString.split(';');
+    
+    for (const pair of cookiePairs) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) continue;
+      
+      const name = pair.substring(0, eqIndex).trim();
+      const value = pair.substring(eqIndex + 1);
+      
+      if (name && !this.cookies.has(name)) {
+        this.cookies.set(name, {
+          name,
+          value: value || '',
+          domain: window.location.hostname,
+          path: '/',
+        });
+      }
+    }
+  }
+
+  /**
+   * Watch for cookie changes using MutationObserver and polling
+   */
+  private watchCookieChanges(): void {
+    if (typeof window === 'undefined') return;
+
+    // Don't start watching if already watching
+    if (this.scanInterval !== null || this.mutationObserver !== null) {
+      return;
+    }
+
+    // MutationObserver for script tags
+    if (typeof MutationObserver !== 'undefined') {
+      this.mutationObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeName === 'SCRIPT') {
+              // Re-scan cookies when new scripts are added
+              setTimeout(() => this.detectCurrentCookies(), 100);
+            }
+          });
+        });
+      });
+
+      this.mutationObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    // Polling for cookie changes every 2 seconds
+    this.scanInterval = window.setInterval(() => {
+      this.detectCurrentCookies();
+    }, 2000);
+  }
+
+  /**
+   * Stop watching for cookie changes
+   */
+  stopWatching(): void {
+    if (this.scanInterval !== null) {
+      clearInterval(this.scanInterval);
+      this.scanInterval = null;
+    }
+
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+      this.mutationObserver = null;
+    }
+  }
+
+  /**
+   * Automatically categorize cookies based on known patterns
+   */
+  private categorizeCookies(): { [cookieName: string]: string } {
+    const categories: { [cookieName: string]: string } = {};
+
+    // Known cookie patterns for automatic categorization
+    const patterns = {
+      analytics: [
+        '_ga', '_gid', '_gat', '_gac', // Google Analytics
+        '__utma', '__utmb', '__utmc', '__utmz', '__utmt', // Legacy Google Analytics
+        '_clck', '_clsk', 'CLID', 'ANONCHK', 'MR', 'MUID', 'SM', // Microsoft Clarity
+        '_hjid', '_hjSessionUser', '_hjFirstSeen', '_hjSession', // Hotjar
+        'mp_', 'mixpanel', // Mixpanel
+        'amplitude_', // Amplitude
+      ],
+      marketing: [
+        '_fbp', '_fbc', 'fr', // Facebook/Meta
+        '_ttp', '_tt_enable_cookie', '_ttp_', // TikTok
+        '_gcl_', '_gac_', // Google Ads Conversion
+        'IDE', 'test_cookie', // DoubleClick
+      ],
+      necessary: [
+        'rs-cmp-consent', // Our consent cookie
+        'PHPSESSID', 'JSESSIONID', // Session cookies
+        'csrftoken', 'csrf_token', '_csrf', // CSRF tokens
+        'cookie_notice', 'gdpr', 'privacy', // Consent-related
+      ],
+      preferences: [
+        'lang', 'language', 'locale', // Language preferences
+        'theme', 'dark_mode', // Theme preferences
+        'timezone', 'tz', // Timezone
+      ],
+    };
+
+    this.cookies.forEach((cookie, name) => {
+      let category = 'unclassified';
+
+      // Check each pattern
+      for (const [cat, patterns_list] of Object.entries(patterns)) {
+        for (const pattern of patterns_list) {
+          if (name.includes(pattern) || name.startsWith(pattern)) {
+            category = cat;
+            break;
+          }
+        }
+        if (category !== 'unclassified') break;
+      }
+
+      categories[name] = category;
+      
+      // Update cookie with category
+      const cookieData = this.cookies.get(name);
+      if (cookieData) {
+        cookieData.category = category;
+      }
+    });
+
+    return categories;
+  }
+
+  /**
+   * Get all detected cookies
+   */
+  getDetectedCookies(): DetectedCookie[] {
+    return Array.from(this.cookies.values());
+  }
+
+  /**
+   * Send cookie report to backend
+   */
+  async sendReportToBackend(siteId: string, apiUrl: string): Promise<void> {
+    // Get current scan data without re-scanning
+    const report: CookieScanReport = {
+      timestamp: new Date().toISOString(),
+      cookies: Array.from(this.cookies.values()),
+      autoCategories: this.categorizeCookies(),
+    };
+    
+    try {
+      await fetch(`${apiUrl}/v1/cookies/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          siteId,
+          ...report,
+        }),
+      });
+    } catch (error) {
+      console.error('[RS-CMP] Failed to send cookie report:', error);
+    }
+  }
+
+  /**
+   * Set callback for scan completion
+   */
+  onScan(callback: (report: CookieScanReport) => void): void {
+    this.onScanComplete = callback;
   }
 }
 
@@ -877,6 +1519,8 @@ class RSCMP {
   private scriptBlocker: ScriptBlocker;
   private consentStorage: ConsentStorage;
   private googleConsentMode: GoogleConsentMode;
+  private tcfManager: TCFManager;
+  private cookieScanner: CookieScanner;
   private config: Config | null = null;
   private siteId: string | null = null;
 
@@ -886,6 +1530,8 @@ class RSCMP {
     this.bannerUI = new BannerUI(this.consentManager);
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
+    this.tcfManager = new TCFManager(this.consentManager);
+    this.cookieScanner = new CookieScanner();
   }
 
   /**
@@ -903,6 +1549,9 @@ class RSCMP {
 
       // Load configuration
       this.config = await this.loadConfig(this.siteId);
+      
+      // Start automatic cookie scanning
+      this.startCookieScanning();
       
       // Check if consent already exists
       const existingConsent = this.consentStorage.getConsent();
@@ -975,10 +1624,48 @@ class RSCMP {
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
     
+    // Update TCF 2.2 data
+    this.tcfManager.updateFromConsent(categories);
+    
     // Send consent to backend
     if (this.siteId && this.config) {
       this.sendConsentToBackend(categories);
     }
+  }
+
+  /**
+   * Start automatic cookie scanning
+   */
+  private async startCookieScanning(): Promise<void> {
+    try {
+      // Perform initial scan
+      const report = await this.cookieScanner.scanCookies();
+      
+      // Log discovered cookies in debug mode
+      console.log('[RS-CMP] Cookie scan complete. Found', report.cookies.length, 'cookies');
+      
+      // Send report to backend if configured
+      if (this.siteId) {
+        const apiUrl = this.getApiUrl();
+        await this.cookieScanner.sendReportToBackend(this.siteId, apiUrl);
+      }
+    } catch (error) {
+      console.error('[RS-CMP] Cookie scanning error:', error);
+    }
+  }
+
+  /**
+   * Get TCF data (for external use)
+   */
+  getTCFData(): TCFData | null {
+    return this.tcfManager.getTCFData();
+  }
+
+  /**
+   * Get detected cookies (for external use)
+   */
+  getDetectedCookies(): DetectedCookie[] {
+    return this.cookieScanner.getDetectedCookies();
   }
 
   /**
@@ -987,6 +1674,8 @@ class RSCMP {
   private async sendConsentToBackend(categories: ConsentCategories): Promise<void> {
     try {
       const apiUrl = this.getApiUrl();
+      const tcfData = this.tcfManager.getTCFData();
+      
       await fetch(`${apiUrl}/v1/consent`, {
         method: 'POST',
         headers: {
@@ -997,6 +1686,7 @@ class RSCMP {
           categories,
           timestamp: new Date().toISOString(),
           version: this.config?.policyVersion || '1.0',
+          tcfString: tcfData?.tcString,
         }),
       });
     } catch (error) {

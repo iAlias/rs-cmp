@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS consents (
     categories_json JSONB NOT NULL,
     ip_hash VARCHAR(64) NOT NULL,
     version VARCHAR(20) DEFAULT '1.0',
+    tcf_string TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -30,6 +31,19 @@ CREATE INDEX idx_consents_timestamp ON consents(timestamp);
 CREATE INDEX idx_consents_site_timestamp ON consents(site_id, timestamp);
 
 -- Cookie scans table
+CREATE TABLE IF NOT EXISTS cookie_scans (
+    id SERIAL PRIMARY KEY,
+    site_id VARCHAR(64) NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    timestamp TIMESTAMP NOT NULL,
+    cookies_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    categories_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cookie_scans_site_id ON cookie_scans(site_id);
+CREATE INDEX idx_cookie_scans_timestamp ON cookie_scans(timestamp);
+
+-- Legacy scans table (deprecated, kept for backwards compatibility)
 CREATE TABLE IF NOT EXISTS scans (
     id SERIAL PRIMARY KEY,
     site_id VARCHAR(64) NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
