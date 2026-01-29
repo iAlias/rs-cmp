@@ -5,8 +5,8 @@
   "main": "dist/cmp.js",
   "scripts": {
     "build:sdk": "npm run build:sdk:dev && npm run build:sdk:prod",
-    "build:sdk:dev": "esbuild src/sdk/index.ts --bundle --outfile=dist/cmp.js --format=iife --global-name=RSCMP --target=es2015",
-    "build:sdk:prod": "esbuild src/sdk/index.ts --bundle --minify --outfile=dist/cmp.min.js --format=iife --global-name=RSCMP --target=es2015",
+    "build:sdk:dev": "esbuild src/cmp.ts --bundle --outfile=dist/cmp.js --format=iife --global-name=RSCMP --target=es2015",
+    "build:sdk:prod": "esbuild src/cmp.ts --bundle --minify --outfile=dist/cmp.min.js --format=iife --global-name=RSCMP --target=es2015",
     "build:backend": "tsc -p tsconfig.backend.json",
     "build": "npm run build:sdk && npm run build:backend",
     "dev:backend": "tsx watch src/backend/server.ts",
