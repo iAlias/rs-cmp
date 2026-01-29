@@ -518,6 +518,8 @@ class TCFManager {
   private purposes: Map<number, TCFPurpose> = new Map();
   private consentManager: ConsentManager;
   private tcfData: TCFData | null = null;
+  private eventListeners: Map<number, (data: any, success: boolean) => void> = new Map();
+  private nextListenerId = 0;
 
   constructor(consentManager: ConsentManager) {
     this.consentManager = consentManager;
@@ -640,8 +642,7 @@ class TCFManager {
             break;
 
           case 'removeEventListener':
-            // Not implemented in minimal version
-            callback({ success: true }, true);
+            this.removeEventListener(callback, parameter);
             break;
 
           default:
@@ -681,12 +682,38 @@ class TCFManager {
    * Add event listener for __tcfapi
    */
   private addEventListener(callback: (data: any, success: boolean) => void): void {
+    // Assign a unique listener ID
+    const listenerId = this.nextListenerId++;
+    this.eventListeners.set(listenerId, callback);
+    
     // Listen for consent changes
-    this.consentManager.on('consentUpdated', () => {
+    const handler = () => {
       const consent = this.consentManager.getConsent();
       const tcData = this.generateTCData(consent?.categories);
+      // Add listener ID to the response
+      tcData.listenerId = listenerId;
       callback(tcData, true);
-    });
+    };
+    
+    this.consentManager.on('consentUpdated', handler);
+    
+    // Send initial data
+    const consent = this.consentManager.getConsent();
+    const tcData = this.generateTCData(consent?.categories);
+    tcData.listenerId = listenerId;
+    callback(tcData, true);
+  }
+
+  /**
+   * Remove event listener for __tcfapi
+   */
+  private removeEventListener(callback: (data: any, success: boolean) => void, listenerId?: number): void {
+    if (listenerId !== undefined) {
+      this.eventListeners.delete(listenerId);
+      callback({ success: true }, true);
+    } else {
+      callback({ success: false, msg: 'Listener ID required' }, false);
+    }
   }
 
   /**
@@ -735,7 +762,7 @@ class TCFManager {
       listenerId: undefined,
       isServiceSpecific: true,
       useNonStandardStacks: false,
-      publisherCC: 'IT', // Can be configured per site
+      publisherCC: 'IT', // TODO: Make this configurable per site
       purposeOneTreatment: false,
       outOfBand: {
         allowedVendors: {},
@@ -776,15 +803,23 @@ class TCFManager {
 
   /**
    * Generate TCF String (TC String encoding according to IAB spec)
-   * This is a simplified version - production should use a proper IAB encoder library
+   * 
+   * WARNING: This is a SIMPLIFIED implementation for demonstration purposes.
+   * For production use with real IAB vendors (Google, Meta, etc.), you MUST use
+   * the official @iabtcf/core library for proper IAB-compliant TC String encoding.
+   * 
+   * The current implementation creates a custom JSON-based encoding that will NOT
+   * work with real ad platforms. Install @iabtcf/core and use TCString.encode()
+   * for production deployments.
+   * 
+   * @see https://github.com/InteractiveAdvertisingBureau/iabtcf-es
    */
   generateTCString(
     purposeConsents: { [key: number]: boolean },
     vendorConsents: { [key: number]: boolean }
   ): string {
-    // Simplified TCF String generation
-    // Real implementation should follow IAB TCF 2.2 encoding spec
-    // Format: CPXxxx... (base64url encoded binary data)
+    // Simplified TCF String generation for demonstration
+    // TODO: Replace with @iabtcf/core library for production
     
     const version = 2; // TCF version 2
     const created = Math.floor(Date.now() / 100); // Deciseconds since epoch
@@ -861,7 +896,7 @@ class CookieScanner {
     // 1. Detect all first-party cookies
     this.detectCurrentCookies();
 
-    // 2. Start monitoring for new cookies
+    // 2. Start monitoring for new cookies (only if not already watching)
     this.watchCookieChanges();
 
     // 3. Categorize cookies automatically
@@ -873,6 +908,11 @@ class CookieScanner {
       cookies: Array.from(this.cookies.values()),
       autoCategories: categorized,
     };
+
+    // 5. Call callback if set
+    if (this.onScanComplete) {
+      this.onScanComplete(report);
+    }
 
     return report;
   }
@@ -889,7 +929,12 @@ class CookieScanner {
     const cookiePairs = cookieString.split(';');
     
     for (const pair of cookiePairs) {
-      const [name, value] = pair.trim().split('=');
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) continue;
+      
+      const name = pair.substring(0, eqIndex).trim();
+      const value = pair.substring(eqIndex + 1);
+      
       if (name && !this.cookies.has(name)) {
         this.cookies.set(name, {
           name,
@@ -906,6 +951,11 @@ class CookieScanner {
    */
   private watchCookieChanges(): void {
     if (typeof window === 'undefined') return;
+
+    // Don't start watching if already watching
+    if (this.scanInterval !== null || this.mutationObserver !== null) {
+      return;
+    }
 
     // MutationObserver for script tags
     if (typeof MutationObserver !== 'undefined') {
@@ -968,7 +1018,6 @@ class CookieScanner {
         '_ttp', '_tt_enable_cookie', '_ttp_', // TikTok
         '_gcl_', '_gac_', // Google Ads Conversion
         'IDE', 'test_cookie', // DoubleClick
-        '__Secure-', '__Host-', // Secure cookies often used for ads
       ],
       necessary: [
         'rs-cmp-consent', // Our consent cookie
@@ -1020,7 +1069,12 @@ class CookieScanner {
    * Send cookie report to backend
    */
   async sendReportToBackend(siteId: string, apiUrl: string): Promise<void> {
-    const report = await this.scanCookies();
+    // Get current scan data without re-scanning
+    const report: CookieScanReport = {
+      timestamp: new Date().toISOString(),
+      cookies: Array.from(this.cookies.values()),
+      autoCategories: this.categorizeCookies(),
+    };
     
     try {
       await fetch(`${apiUrl}/v1/cookies/report`, {

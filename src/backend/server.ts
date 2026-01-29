@@ -80,6 +80,15 @@ fastify.post('/v1/consent', async (request, reply) => {
     return reply.status(400).send({ error: 'Missing required fields' });
   }
 
+  // Validate TCF string format if provided
+  if (tcfString && typeof tcfString === 'string') {
+    // TCF strings should start with "CP" and be base64url encoded
+    if (!tcfString.startsWith('CP')) {
+      fastify.log.warn('Invalid TCF string format: does not start with CP');
+      // Continue anyway but log warning
+    }
+  }
+
   try {
     // Hash IP address for privacy
     const ipAddress = request.ip;
