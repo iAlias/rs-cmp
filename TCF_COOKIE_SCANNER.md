@@ -318,13 +318,43 @@ npm run build:sdk
 
 ## Production Considerations
 
-### TCF String Encoding
+### TCF String Encoding - CRITICAL
 
-The current implementation uses a simplified TC String encoding. For production use with real IAB vendors, consider using the official `@iabtcf/core` library for proper encoding:
+⚠️ **WARNING**: The current implementation uses a **simplified TC String encoding** that is NOT compliant with the IAB TCF 2.2 binary encoding specification.
+
+**Current Status:**
+- ✅ Window.__tcfapi interface is fully implemented
+- ✅ Purposes and vendors are correctly configured
+- ✅ Consent mapping works correctly
+- ❌ TC String uses custom JSON-based encoding (not IAB-compliant)
+
+**For Production Deployment with Real Ad Platforms:**
+
+You **MUST** replace the TC String encoding with the official IAB library:
 
 ```bash
 npm install @iabtcf/core
 ```
+
+Then update the `generateTCString` method:
+
+```typescript
+import { TCString, TCModel, GVL } from '@iabtcf/core';
+
+// In generateTCString method:
+const tcModel = new TCModel();
+tcModel.cmpId = this.cmpId;
+tcModel.cmpVersion = this.cmpVersion;
+tcModel.purposeConsents.set(purposeConsents);
+tcModel.vendorConsents.set(vendorConsents);
+
+return TCString.encode(tcModel);
+```
+
+**Impact if not fixed:**
+- Google Ads, Meta Ads, and other IAB vendors will reject the consent
+- Advertising platforms may not serve ads
+- Compliance with TCF 2.2 will be incomplete
 
 ### Vendor List Management
 
