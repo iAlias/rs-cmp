@@ -1413,7 +1413,8 @@ class BannerUI {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(2px);
         }
         
         .rs-cmp-modal-content {
@@ -1421,46 +1422,153 @@ class BannerUI {
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: white;
-          padding: 24px;
-          border-radius: 12px;
-          max-width: 600px;
-          max-height: 80vh;
+          background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+          padding: 32px;
+          border-radius: 16px;
+          min-width: 50vw;
+          max-width: 800px;
+          max-height: 85vh;
           overflow-y: auto;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.8);
+          animation: rs-cmp-modal-appear 0.3s ease-out;
+        }
+        
+        @keyframes rs-cmp-modal-appear {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -48%) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+        
+        .rs-cmp-modal-content h2 {
+          color: #1a202c;
+          font-size: 24px;
+          font-weight: 700;
+          margin: 0 0 8px 0;
+          letter-spacing: -0.5px;
         }
         
         .rs-cmp-categories {
-          margin: 20px 0;
+          margin: 24px 0;
         }
         
         .rs-cmp-category {
-          padding: 16px;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          margin-bottom: 12px;
+          padding: 20px;
+          background: white;
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          margin-bottom: 16px;
+          transition: all 0.2s ease;
+        }
+        
+        .rs-cmp-category:hover {
+          border-color: #cbd5e0;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          transform: translateY(-2px);
         }
         
         .rs-cmp-category label {
           display: flex;
-          gap: 12px;
+          gap: 16px;
           cursor: pointer;
+          align-items: flex-start;
         }
         
         .rs-cmp-category input[type="checkbox"] {
           margin-top: 4px;
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          accent-color: #2563eb;
+        }
+        
+        .rs-cmp-category input[type="checkbox"]:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+        
+        .rs-cmp-category strong {
+          color: #2d3748;
+          font-size: 16px;
+          font-weight: 600;
         }
         
         .rs-cmp-category p {
-          margin: 4px 0 0 0;
-          font-size: 13px;
-          opacity: 0.7;
+          margin: 6px 0 0 0;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #4a5568;
         }
         
         .rs-cmp-modal-buttons {
           display: flex;
           gap: 12px;
-          margin-top: 20px;
+          margin-top: 24px;
+        }
+        
+        .rs-cmp-modal-buttons button {
+          flex: 1;
+          padding: 14px 28px;
+          font-size: 15px;
+          font-weight: 600;
+          border-radius: 10px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .rs-cmp-modal-buttons button:first-child {
+          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+          color: white;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .rs-cmp-modal-buttons button:first-child:hover {
+          background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+          transform: translateY(-2px);
+        }
+        
+        .rs-cmp-modal-buttons button:last-child {
+          background: #f1f5f9;
+          color: #475569;
+          border: 2px solid #e2e8f0;
+        }
+        
+        .rs-cmp-modal-buttons button:last-child:hover {
+          background: #e2e8f0;
+          border-color: #cbd5e0;
+        }
+        
+        @media (max-width: 768px) {
+          .rs-cmp-modal-content {
+            min-width: 90vw;
+            max-width: 90vw;
+            padding: 24px;
+          }
+          
+          .rs-cmp-modal-buttons {
+            flex-direction: column;
+          }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .rs-cmp-modal-content {
+            animation: none;
+          }
+          
+          .rs-cmp-category:hover {
+            transform: none;
+          }
+          
+          .rs-cmp-modal-buttons button:hover {
+            transform: none;
+          }
         }
       `;
       document.head.appendChild(style);

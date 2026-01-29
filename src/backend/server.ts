@@ -367,6 +367,33 @@ function getDefaultCategories() {
  */
 function getDefaultTranslations() {
   return {
+    it: {
+      title: 'Gestione Cookie',
+      description: 'Utilizziamo i cookie per offrirti la migliore esperienza sul nostro sito web. Puoi accettare tutti i cookie, rifiutarli o personalizzare le tue preferenze.',
+      acceptAll: 'Accetta tutto',
+      rejectAll: 'Rifiuta tutto',
+      customize: 'Personalizza',
+      save: 'Salva preferenze',
+      close: 'Chiudi',
+      categories: {
+        necessary: {
+          name: 'Cookie Necessari',
+          description: 'Questi cookie sono essenziali per il corretto funzionamento del sito web e non possono essere disabilitati.',
+        },
+        analytics: {
+          name: 'Cookie Analitici',
+          description: 'Ci aiutano a comprendere come i visitatori interagiscono con il sito web, raccogliendo e analizzando informazioni in forma anonima.',
+        },
+        marketing: {
+          name: 'Cookie di Marketing',
+          description: 'Utilizzati per mostrare pubblicità personalizzate in base ai tuoi interessi e misurare l\'efficacia delle campagne pubblicitarie.',
+        },
+        preferences: {
+          name: 'Cookie di Preferenze',
+          description: 'Permettono al sito di ricordare le tue scelte (come lingua o regione) per offrirti un\'esperienza più personalizzata.',
+        },
+      },
+    },
     en: {
       title: 'Cookie Consent',
       description: 'We use cookies to enhance your browsing experience and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.',
@@ -391,33 +418,6 @@ function getDefaultTranslations() {
         preferences: {
           name: 'Preferences',
           description: 'Remember your preferences and settings',
-        },
-      },
-    },
-    it: {
-      title: 'Consenso ai Cookie',
-      description: 'Utilizziamo i cookie per migliorare la tua esperienza di navigazione e analizzare il nostro traffico. Cliccando su "Accetta tutto", acconsenti all\'uso dei nostri cookie.',
-      acceptAll: 'Accetta tutto',
-      rejectAll: 'Rifiuta tutto',
-      customize: 'Personalizza',
-      save: 'Salva preferenze',
-      close: 'Chiudi',
-      categories: {
-        necessary: {
-          name: 'Necessari',
-          description: 'Necessari per il funzionamento del sito web',
-        },
-        analytics: {
-          name: 'Analitici',
-          description: 'Ci aiutano a capire come i visitatori utilizzano il nostro sito web',
-        },
-        marketing: {
-          name: 'Marketing',
-          description: 'Utilizzati per fornire pubblicità personalizzate',
-        },
-        preferences: {
-          name: 'Preferenze',
-          description: 'Ricordano le tue preferenze e impostazioni',
         },
       },
     },
