@@ -256,7 +256,7 @@ class ConsentManager {
   /**
    * Event emitter - emit event
    */
-  private emit(event: ConsentEventType, data: any): void {
+  emit(event: ConsentEventType, data: any): void {
     const handlers = this.eventHandlers.get(event);
     if (handlers) {
       handlers.forEach((handler) => handler(data));
@@ -493,7 +493,7 @@ class BannerUI {
     document.body.appendChild(this.bannerElement);
 
     // Emit event
-    this.consentManager.on('bannerShown', {});
+    this.consentManager.emit('bannerShown', {});
   }
 
   /**
@@ -503,14 +503,14 @@ class BannerUI {
     if (this.bannerElement) {
       this.bannerElement.remove();
       this.bannerElement = null;
-      this.consentManager.on('bannerClosed', {});
+      this.consentManager.emit('bannerClosed', {});
     }
   }
 
   /**
    * Create banner HTML
    */
-  private createBanner(config: Config, translations: any): HTMLElement {
+  private createBanner(config: Config, translations: Translations): HTMLElement {
     const banner = document.createElement('div');
     banner.id = 'rs-cmp-banner';
     banner.setAttribute('role', 'dialog');
@@ -1014,9 +1014,13 @@ if (typeof window !== 'undefined') {
   const cmp = new RSCMP();
   
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => cmp.init());
+    document.addEventListener('DOMContentLoaded', () => cmp.init().catch(err => {
+      console.error('[RS-CMP] Auto-initialization failed:', err);
+    }));
   } else {
-    cmp.init();
+    cmp.init().catch(err => {
+      console.error('[RS-CMP] Auto-initialization failed:', err);
+    });
   }
 
   // Expose to window for manual control
