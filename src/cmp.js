@@ -229,7 +229,28 @@ class ConsentManager {
     };
 
     this.storage.saveConsent(consentData);
+    
+    // Push to dataLayer
+    this.pushToDataLayer(categories);
+    
     this.emit('consentUpdated', categories);
+  }
+
+  /**
+   * Push consent data to GTM dataLayer
+   * @param {ConsentCategories} categories - Consent categories
+   * @returns {void}
+   */
+  pushToDataLayer(categories) {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'cookie_consent_update',
+      cookie_consent_analytics: categories.analytics,
+      cookie_consent_marketing: categories.marketing,
+      cookie_consent_preferences: categories.preferences,
+      cookie_consent_necessary: categories.necessary,
+      consent_timestamp: new Date().toISOString()
+    });
   }
 
   /**
@@ -328,6 +349,45 @@ class ScriptBlocker {
   }
 
   /**
+   * Detect category from script source or content
+   * @param {string} srcOrCode - Script src or code content
+   * @returns {string | null} Detected category or null
+   */
+  detectCategory(srcOrCode) {
+    const s = (srcOrCode || '').toLowerCase();
+    if (!s) return null;
+
+    // Analytics
+    if (
+      s.indexOf('gtag(') !== -1 ||
+      s.indexOf('google-analytics') !== -1 ||
+      s.indexOf('analytics.js') !== -1 ||
+      s.indexOf('googletagmanager.com/gtag') !== -1 ||
+      s.indexOf('hotjar') !== -1 ||
+      s.indexOf('mixpanel') !== -1 ||
+      s.indexOf('amplitude') !== -1 ||
+      s.indexOf('clarity.ms') !== -1
+    ) {
+      return 'analytics';
+    }
+    
+    // Marketing
+    if (
+      s.indexOf('connect.facebook.net') !== -1 ||
+      s.indexOf('fbq(') !== -1 ||
+      s.indexOf('tiktok.com') !== -1 ||
+      s.indexOf('analytics.tiktok.com') !== -1 ||
+      s.indexOf('ads/') !== -1 ||
+      s.indexOf('doubleclick.net') !== -1 ||
+      s.indexOf('googleadservices.com') !== -1
+    ) {
+      return 'marketing';
+    }
+    
+    return null;
+  }
+
+  /**
    * Block all scripts that require consent
    * @returns {void}
    */
@@ -402,32 +462,20 @@ class ScriptBlocker {
    * @returns {void}
    */
   scanAndBlockCommonScripts() {
-    // Block Google Analytics / gtag
-    const gtagScripts = document.querySelectorAll('script[src*="googletagmanager.com/gtag"]');
-    gtagScripts.forEach((script) => {
-      if (!script.getAttribute('data-category')) {
-        script.setAttribute('data-category', 'analytics');
-        script.setAttribute('type', 'text/plain');
-        this.blockedScripts.push(script);
-      }
-    });
-
-    // Block Facebook Pixel
-    const fbScripts = document.querySelectorAll('script[src*="connect.facebook.net"]');
-    fbScripts.forEach((script) => {
-      if (!script.getAttribute('data-category')) {
-        script.setAttribute('data-category', 'marketing');
-        script.setAttribute('type', 'text/plain');
-        this.blockedScripts.push(script);
-      }
-    });
-
-    // Block Hotjar
-    const hotjarScripts = document.querySelectorAll('script[src*="hotjar.com"]');
-    hotjarScripts.forEach((script) => {
-      if (!script.getAttribute('data-category')) {
-        script.setAttribute('data-category', 'analytics');
-        script.setAttribute('type', 'text/plain');
+    const scripts = document.querySelectorAll('script');
+    
+    scripts.forEach((script) => {
+      // Skip already categorized scripts
+      if (script.getAttribute('data-category')) return;
+      
+      const src = script.src || '';
+      const content = script.textContent || '';
+      const detected = this.detectCategory(src + ' ' + content);
+      
+      if (detected && detected !== 'necessary') {
+        script.setAttribute('data-category', detected);
+        script.setAttribute('data-original-type', script.type || 'text/javascript');
+        script.type = 'text/plain';
         this.blockedScripts.push(script);
       }
     });
@@ -524,6 +572,128 @@ class GoogleConsentMode {
       };
       window.gtag('js', new Date());
     }
+  }
+}
+
+// ============================================================================
+// SERVICE LOADER
+// ============================================================================
+
+class ServiceLoader {
+  /**
+   * @param {ConsentManager} consentManager - Consent manager instance
+   */
+  constructor(consentManager) {
+    /** @type {ConsentManager} */
+    this.consentManager = consentManager;
+    /** @type {Object} */
+    this.services = {
+      'meta-pixel': {
+        id: null,
+        category: 'marketing',
+        loader: (pixelId) => {
+          if (!pixelId || window.fbq) return;
+          !function(f,b,e,v,n,t,s){
+            if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)
+          }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          window.fbq('init', pixelId);
+          window.fbq('track', 'PageView');
+        }
+      },
+      'clarity': {
+        id: null,
+        category: 'analytics',
+        loader: (projectId) => {
+          if (!projectId || window.clarity) return;
+          (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;
+            t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+          })(window,document,"clarity","script",projectId);
+        }
+      },
+      'tiktok-pixel': {
+        id: null,
+        category: 'marketing',
+        loader: (pixelId) => {
+          if (!pixelId || window.ttq) return;
+          !function(w,d,t){
+            w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
+            ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];
+            ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
+            for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
+            ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
+            ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";
+            ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;
+            ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=document.createElement("script");
+            o.type="text/javascript";o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;
+            var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+            ttq.load(pixelId);ttq.page();
+          }(window,document,'ttq');
+        }
+      },
+      'google-ads': {
+        conversionId: null,
+        conversionLabel: null,
+        category: 'marketing',
+        loader: (config) => {
+          // Gestito via Google Consent Mode
+          console.log('[RS-CMP] Google Ads ready via Consent Mode:', config);
+        }
+      }
+    };
+  }
+
+  /**
+   * Configure a service with custom settings
+   * @param {string} serviceId - Service identifier
+   * @param {Object} config - Service configuration
+   * @returns {void}
+   */
+  configure(serviceId, config) {
+    if (this.services[serviceId]) {
+      this.services[serviceId] = { ...this.services[serviceId], ...config };
+    }
+  }
+
+  /**
+   * Load a specific service
+   * @param {string} serviceId - Service identifier
+   * @returns {void}
+   */
+  loadService(serviceId) {
+    const service = this.services[serviceId];
+    if (!service) return;
+    
+    const hasConsent = this.consentManager.hasConsent(service.category);
+    if (hasConsent && service.loader) {
+      try {
+        service.loader(service.id || service);
+        console.log(`[RS-CMP] Service loaded: ${serviceId}`);
+      } catch (error) {
+        console.error(`[RS-CMP] Failed to load service ${serviceId}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Load all services based on consent categories
+   * @param {ConsentCategories} categories - Consent categories
+   * @returns {void}
+   */
+  loadAllServices(categories) {
+    Object.keys(this.services).forEach(serviceId => {
+      const service = this.services[serviceId];
+      if (categories[service.category]) {
+        this.loadService(serviceId);
+      }
+    });
   }
 }
 
@@ -824,18 +994,30 @@ class BannerUI {
         <div class="rs-cmp-categories">
           ${this.config.categories.map((cat) => `
             <div class="rs-cmp-category">
-              <label>
-                <input 
-                  type="checkbox" 
-                  name="${cat.id}" 
-                  ${cat.required ? 'checked disabled' : ''}
-                  ${cat.enabled ? 'checked' : ''}
-                />
-                <div>
-                  <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
-                  <p>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].description : cat.description)}</p>
-                </div>
-              </label>
+              <div class="rs-cmp-category-header">
+                <label>
+                  <input 
+                    type="checkbox" 
+                    name="${cat.id}" 
+                    ${cat.required ? 'checked disabled' : ''}
+                    ${cat.enabled ? 'checked' : ''}
+                  />
+                  <div>
+                    <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
+                    <p>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].description : cat.description)}</p>
+                  </div>
+                </label>
+                ${cat.id !== 'necessary' ? `
+                  <button 
+                    class="rs-cmp-toggle-details" 
+                    onclick="this.parentElement.nextElementSibling.classList.toggle('rs-cmp-hidden')"
+                    aria-label="Show details"
+                  >
+                    ▼
+                  </button>
+                ` : ''}
+              </div>
+              ${this.getServicesForCategory(cat.id)}
             </div>
           `).join('')}
         </div>
@@ -914,6 +1096,49 @@ class BannerUI {
           opacity: 0.7;
         }
         
+        .rs-cmp-hidden {
+          display: none !important;
+        }
+        
+        .rs-cmp-category-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+        }
+        
+        .rs-cmp-toggle-details {
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 12px;
+          padding: 4px 8px;
+        }
+        
+        .rs-cmp-category-services {
+          margin-top: 12px;
+          padding: 12px;
+          background: #f5f5f5;
+          border-radius: 4px;
+          font-size: 12px;
+        }
+        
+        .rs-cmp-services-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        
+        .rs-cmp-services-table th,
+        .rs-cmp-services-table td {
+          padding: 6px 8px;
+          text-align: left;
+          border-bottom: 1px solid #ddd;
+        }
+        
+        .rs-cmp-services-table th {
+          font-weight: 600;
+          background: #e9e9e9;
+        }
+        
         .rs-cmp-modal-buttons {
           display: flex;
           gap: 12px;
@@ -962,6 +1187,56 @@ class BannerUI {
   }
 
   /**
+   * Get services for a specific category
+   * @param {string} categoryId - Category identifier
+   * @returns {string} HTML for category services
+   */
+  getServicesForCategory(categoryId) {
+    const servicesMap = {
+      analytics: [
+        { name: 'Google Analytics 4', provider: 'Google', duration: '2 years' },
+        { name: 'Microsoft Clarity', provider: 'Microsoft', duration: '1 year' }
+      ],
+      marketing: [
+        { name: 'Google Ads', provider: 'Google', duration: '90 days' },
+        { name: 'Meta Pixel', provider: 'Meta', duration: '90 days' },
+        { name: 'TikTok Pixel', provider: 'TikTok', duration: '13 months' }
+      ],
+      preferences: [
+        { name: 'Language Settings', provider: 'First-party', duration: '1 year' },
+        { name: 'Theme Preferences', provider: 'First-party', duration: '1 year' }
+      ]
+    };
+    
+    const services = servicesMap[categoryId] || [];
+    
+    if (services.length === 0) return '';
+    
+    return `
+      <div class="rs-cmp-category-services rs-cmp-hidden">
+        <table class="rs-cmp-services-table">
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Provider</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${services.map(s => `
+              <tr>
+                <td>${this.escapeHtml(s.name)}</td>
+                <td>${this.escapeHtml(s.provider)}</td>
+                <td>${this.escapeHtml(s.duration)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /**
    * Detect user's language
    * @private
    * @returns {string} Language code
@@ -1000,28 +1275,36 @@ class RSCMP {
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     /** @type {GoogleConsentMode} */
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
+    /** @type {ServiceLoader} */
+    this.serviceLoader = new ServiceLoader(this.consentManager);
     /** @type {Config | null} */
     this.config = null;
     /** @type {string | null} */
     this.siteId = null;
+    /** @type {boolean} */
+    this.debugMode = false;
   }
 
   /**
    * Initialize the CMP
+   * @param {Config | null} [inlineConfig] - Optional inline configuration
    * @returns {Promise<void>}
    */
-  async init() {
+  async init(inlineConfig = null) {
     try {
       // Get site-id from script tag
       this.siteId = this.getSiteIdFromScript();
       
-      if (!this.siteId) {
-        console.error('[RS-CMP] Missing data-site-id attribute');
-        return;
+      // Support inline configuration
+      if (inlineConfig) {
+        this.config = this.mergeWithDefaults(inlineConfig);
+      } else if (this.siteId) {
+        // Load from API
+        this.config = await this.loadConfig(this.siteId);
+      } else {
+        // Use default configuration
+        this.config = this.getDefaultConfig();
       }
-
-      // Load configuration
-      this.config = await this.loadConfig(this.siteId);
       
       // Check if consent already exists
       const existingConsent = this.consentStorage.getConsent();
@@ -1104,10 +1387,161 @@ class RSCMP {
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
     
+    // Load services based on consent
+    this.serviceLoader.loadAllServices(categories);
+    
     // Send consent to backend
     if (this.siteId && this.config) {
       this.sendConsentToBackend(categories);
     }
+  }
+
+  /**
+   * Configure a service (public method)
+   * @param {string} serviceId - Service identifier
+   * @param {Object} config - Service configuration
+   * @returns {void}
+   */
+  configureService(serviceId, config) {
+    this.serviceLoader.configure(serviceId, config);
+  }
+
+  /**
+   * Show preferences banner (public method)
+   * @returns {void}
+   */
+  showPreferences() {
+    if (this.config) {
+      this.bannerUI.show(this.config);
+    }
+  }
+
+  /**
+   * Reset consent and show banner (public method)
+   * @returns {void}
+   */
+  resetConsent() {
+    this.consentStorage.clearConsent();
+    this.scriptBlocker.blockScripts();
+    this.showPreferences();
+  }
+
+  /**
+   * Enable debug mode
+   * @returns {void}
+   */
+  enableDebug() {
+    this.debugMode = true;
+    console.log('[RS-CMP] Debug mode enabled');
+  }
+
+  /**
+   * Disable debug mode
+   * @returns {void}
+   */
+  disableDebug() {
+    this.debugMode = false;
+  }
+
+  /**
+   * Log message if debug mode is enabled
+   * @param {...*} args - Arguments to log
+   * @returns {void}
+   */
+  log(...args) {
+    if (this.debugMode) {
+      console.log('[RS-CMP]', ...args);
+    }
+  }
+
+  /**
+   * Get CMP status (diagnostic method)
+   * @returns {Object} Status information
+   */
+  getStatus() {
+    return {
+      initialized: !!this.config,
+      siteId: this.siteId,
+      consent: this.consentManager.getConsent(),
+      blockedScripts: this.scriptBlocker.blockedScripts.length,
+      bannerVisible: !!this.bannerUI.bannerElement
+    };
+  }
+
+  /**
+   * Test Google Consent Mode
+   * @returns {void}
+   */
+  testConsentMode() {
+    if (typeof window.gtag === 'function') {
+      console.log('[RS-CMP] Testing Google Consent Mode...');
+      window.gtag('get', 'G-XXXXXX', 'consent', (consent) => {
+        console.log('[RS-CMP] Current consent state:', consent);
+      });
+    } else {
+      console.warn('[RS-CMP] gtag not available');
+    }
+  }
+
+  /**
+   * Get default configuration
+   * @returns {Config} Default configuration
+   */
+  getDefaultConfig() {
+    return {
+      siteId: 'default',
+      siteName: 'Website',
+      domain: window.location.hostname,
+      policyVersion: '1.0',
+      banner: {
+        position: 'bottom',
+        layout: 'bar',
+        primaryColor: '#0084ff',
+        backgroundColor: '#ffffff',
+        textColor: '#000000',
+        buttonTextColor: '#ffffff',
+        showLogo: false
+      },
+      categories: [
+        { id: 'necessary', name: 'Necessary', description: 'Required for site functionality', required: true, enabled: true },
+        { id: 'analytics', name: 'Analytics', description: 'Help us improve', required: false, enabled: false },
+        { id: 'marketing', name: 'Marketing', description: 'Personalized ads', required: false, enabled: false },
+        { id: 'preferences', name: 'Preferences', description: 'Remember your choices', required: false, enabled: false }
+      ],
+      translations: {
+        en: {
+          title: 'We respect your privacy',
+          description: 'We use cookies to improve your experience.',
+          acceptAll: 'Accept All',
+          rejectAll: 'Reject All',
+          customize: 'Customize',
+          save: 'Save Preferences',
+          close: 'Close',
+          categories: {
+            necessary: { name: 'Necessary', description: 'Essential cookies' },
+            analytics: { name: 'Analytics', description: 'Usage statistics' },
+            marketing: { name: 'Marketing', description: 'Advertising cookies' },
+            preferences: { name: 'Preferences', description: 'Your settings' }
+          }
+        }
+      }
+    };
+  }
+
+  /**
+   * Merge custom config with defaults
+   * @param {Object} config - Custom configuration
+   * @returns {Config} Merged configuration
+   */
+  mergeWithDefaults(config) {
+    const defaults = this.getDefaultConfig();
+    return {
+      ...defaults,
+      ...config,
+      banner: { ...defaults.banner, ...(config.banner || {}) },
+      categories: config.categories || defaults.categories,
+      translations: { ...defaults.translations, ...(config.translations || {}) }
+    };
   }
 
   /**
