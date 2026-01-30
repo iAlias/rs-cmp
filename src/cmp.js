@@ -1009,6 +1009,9 @@ class BannerUI {
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
 
+    // Get current consent to populate checkboxes
+    const currentConsent = this.consentManager.getConsent();
+
     const modal = document.createElement('div');
     modal.id = 'rs-cmp-customize-modal';
     modal.setAttribute('role', 'dialog');
@@ -1019,7 +1022,10 @@ class BannerUI {
       <div class="rs-cmp-modal-content">
         <h2>${this.escapeHtml(translations.customize)}</h2>
         <div class="rs-cmp-categories">
-          ${this.config.categories.map((cat) => `
+          ${this.config.categories.map((cat) => {
+            // Determine if checkbox should be checked based on saved consent
+            const isChecked = cat.required || (currentConsent && currentConsent[cat.id]) || false;
+            return `
             <div class="rs-cmp-category">
               <div class="rs-cmp-category-header">
                 <label>
@@ -1027,7 +1033,7 @@ class BannerUI {
                     type="checkbox" 
                     name="${cat.id}" 
                     ${cat.required ? 'checked disabled' : ''}
-                    ${cat.enabled ? 'checked' : ''}
+                    ${isChecked ? 'checked' : ''}
                   />
                   <div>
                     <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
@@ -1046,7 +1052,8 @@ class BannerUI {
               </div>
               ${this.getServicesForCategory(cat.id)}
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
         <div class="rs-cmp-modal-buttons">
           <button class="rs-cmp-btn rs-cmp-btn-accept" id="rs-cmp-save-preferences">
@@ -1781,8 +1788,8 @@ class RSCMP {
       const existingConsent = this.consentStorage.getConsent();
       
       if (existingConsent) {
-        // Apply existing consent
-        this.applyConsent(existingConsent.categories);
+        // Apply existing consent without reload (initial page load)
+        this.applyConsent(existingConsent.categories, false);
         // Show reopen button
         this.showReopenButton();
       } else {
@@ -1795,7 +1802,8 @@ class RSCMP {
 
       // Listen for consent updates
       this.consentManager.on('consentUpdated', (categories) => {
-        this.applyConsent(categories);
+        // Apply consent with reload (user changed consent)
+        this.applyConsent(categories, true);
       });
 
       // Listen for banner close to show reopen button
@@ -1856,9 +1864,10 @@ class RSCMP {
    * Apply consent to scripts and services
    * @private
    * @param {ConsentCategories} categories - Consent categories
+   * @param {boolean} shouldReload - Whether to reload the page after applying consent
    * @returns {void}
    */
-  applyConsent(categories) {
+  applyConsent(categories, shouldReload = false) {
     // Unblock scripts based on consent
     this.scriptBlocker.unblockScripts(categories);
     
@@ -1871,6 +1880,14 @@ class RSCMP {
     // Send consent to backend
     if (this.siteId && this.config) {
       this.sendConsentToBackend(categories);
+    }
+
+    // Reload page to properly apply script blocking/unblocking
+    if (shouldReload) {
+      // Small delay to ensure consent is saved
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
   }
 
@@ -2228,7 +2245,12 @@ let cmpInstance = null;
 if (typeof window !== 'undefined') {
   cmpInstance = new RSCMP();
   
+  // Early script blocking - run immediately to block scripts before they execute
+  // This is crucial for proper cookie blocking
   if (document.readyState === 'loading') {
+    // Block scripts immediately
+    cmpInstance.scriptBlocker.blockScripts();
+    
     document.addEventListener('DOMContentLoaded', () => cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     }));
