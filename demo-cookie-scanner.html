@@ -283,8 +283,11 @@
                 return;
             }
             
-            if (!window.RSCMP.cookieScanner) {
-                console.error('CookieScanner not available');
+            // Check if public methods are available
+            if (typeof window.RSCMP.getDetectedCookies !== 'function' || 
+                typeof window.RSCMP.getCookieReport !== 'function') {
+                console.log('Waiting for RSCMP methods to be available...');
+                setTimeout(refreshCookieList, 500);
                 return;
             }
             
