@@ -817,13 +817,15 @@ class BannerUI {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
           background: ${backgroundColor};
           color: ${textColor};
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.1);
+          border-top: 1px solid rgba(0, 0, 0, 0.08);
           ${this.getPositionStyles(position, layout)}
         }
         
         .rs-cmp-content {
-          padding: 24px;
-          max-width: 100%;
+          padding: 20px 32px;
+          max-width: 1200px;
+          margin: 0 auto;
         }
         
         .rs-cmp-logo {
@@ -832,36 +834,45 @@ class BannerUI {
         }
         
         .rs-cmp-title {
-          margin: 0 0 12px 0;
-          font-size: 18px;
+          margin: 0 0 8px 0;
+          font-size: 16px;
           font-weight: 600;
+          line-height: 1.4;
         }
         
         .rs-cmp-description {
-          margin: 0 0 20px 0;
-          font-size: 14px;
-          line-height: 1.5;
-          opacity: 0.9;
+          margin: 0 0 16px 0;
+          font-size: 13px;
+          line-height: 1.6;
+          opacity: 0.85;
+          max-width: 800px;
         }
         
         .rs-cmp-buttons {
           display: flex;
-          gap: 12px;
+          gap: 10px;
           flex-wrap: wrap;
+          align-items: center;
         }
         
         .rs-cmp-btn {
-          padding: 12px 24px;
+          padding: 10px 20px;
           border: none;
-          border-radius: 6px;
-          font-size: 14px;
+          border-radius: 4px;
+          font-size: 13px;
           font-weight: 500;
           cursor: pointer;
-          transition: opacity 0.2s;
+          transition: all 0.2s ease;
+          white-space: nowrap;
         }
         
         .rs-cmp-btn:hover {
-          opacity: 0.85;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .rs-cmp-btn:active {
+          transform: translateY(0);
         }
         
         .rs-cmp-btn:focus {
@@ -875,15 +886,26 @@ class BannerUI {
         }
         
         .rs-cmp-btn-reject {
-          background: transparent;
+          background: #f5f5f5;
           color: ${textColor};
-          border: 1px solid ${textColor};
+          border: 1px solid #e0e0e0;
+        }
+        
+        .rs-cmp-btn-reject:hover {
+          background: #ebebeb;
         }
         
         .rs-cmp-btn-customize {
           background: transparent;
-          color: ${textColor};
+          color: ${primaryColor};
+          text-decoration: none;
+          padding: 10px 16px;
+        }
+        
+        .rs-cmp-btn-customize:hover {
           text-decoration: underline;
+          box-shadow: none;
+          transform: none;
         }
         
         @media (max-width: 768px) {
@@ -893,8 +915,13 @@ class BannerUI {
             width: 100% !important;
           }
           
+          .rs-cmp-content {
+            padding: 16px 20px;
+          }
+          
           .rs-cmp-buttons {
             flex-direction: column;
+            gap: 8px;
           }
           
           .rs-cmp-btn {
@@ -1368,6 +1395,785 @@ class BannerUI {
 }
 
 // ============================================================================
+// TCF 2.2 MANAGER (IAB Transparency & Consent Framework)
+// ============================================================================
+
+class TCFManager {
+  constructor() {
+    /** @type {number} */
+    this.tcfVersion = 2.2;
+    /** @type {Map<number, Object>} */
+    this.vendors = new Map(); // IAB vendor list
+    /** @type {Map<number, Object>} */
+    this.purposes = new Map(); // IAB purposes
+    /** @type {Map<number, Object>} */
+    this.specialFeatures = new Map(); // IAB special features
+    /** @type {Map<number, Object>} */
+    this.specialPurposes = new Map(); // IAB special purposes
+    /** @type {string | null} */
+    this.tcString = null;
+    /** @type {Object} */
+    this.vendorConsents = {};
+    /** @type {Object} */
+    this.purposeConsents = {};
+    /** @type {number} */
+    this.cmpId = 1; // CMP ID (should be registered with IAB)
+    /** @type {number} */
+    this.cmpVersion = 1;
+    /** @type {string} */
+    this.consentScreen = 1;
+    /** @type {string} */
+    this.consentLanguage = 'IT';
+    /** @type {number} */
+    this.vendorListVersion = 0;
+    /** @type {number} */
+    this.policyVersion = 2;
+  }
+
+  /**
+   * Initialize TCF API
+   * @returns {void}
+   */
+  init() {
+    this.setupTCFAPI();
+    this.loadVendorList();
+    this.loadPurposes();
+  }
+
+  /**
+   * Setup IAB TCF API window.__tcfapi
+   * @returns {void}
+   */
+  setupTCFAPI() {
+    // Setup __tcfapi function
+    window.__tcfapi = (command, version, callback, parameter) => {
+      if (typeof callback !== 'function') {
+        console.error('[TCF] Callback must be a function');
+        return;
+      }
+
+      // Handle commands
+      switch (command) {
+        case 'ping':
+          callback({
+            gdprApplies: true,
+            cmpLoaded: true,
+            cmpStatus: 'loaded',
+            displayStatus: 'visible',
+            apiVersion: '2.2',
+            cmpVersion: this.cmpVersion,
+            cmpId: this.cmpId,
+            gvlVersion: this.vendorListVersion,
+            tcfPolicyVersion: this.policyVersion
+          }, true);
+          break;
+
+        case 'getTCData':
+          callback(this.getTCData(parameter), true);
+          break;
+
+        case 'getVendorList':
+          callback(this.getVendorList(parameter), true);
+          break;
+
+        case 'addEventListener':
+          this.addEventListener(callback);
+          break;
+
+        case 'removeEventListener':
+          this.removeEventListener(parameter);
+          break;
+
+        default:
+          console.warn(`[TCF] Unknown command: ${command}`);
+          callback(null, false);
+      }
+    };
+
+    // Setup __tcfapi.a queue for early calls
+    window.__tcfapi.a = window.__tcfapi.a || [];
+  }
+
+  /**
+   * Get TC Data
+   * @param {Array<number>} vendorIds - Optional vendor IDs to filter
+   * @returns {Object} TC Data object
+   */
+  getTCData(vendorIds) {
+    return {
+      tcString: this.tcString || '',
+      tcfPolicyVersion: this.policyVersion,
+      cmpId: this.cmpId,
+      cmpVersion: this.cmpVersion,
+      gdprApplies: true,
+      eventStatus: this.tcString ? 'tcloaded' : 'cmpuishown',
+      cmpStatus: 'loaded',
+      listenerId: null,
+      isServiceSpecific: false,
+      useNonStandardTexts: false,
+      publisherCC: 'IT',
+      purposeOneTreatment: false,
+      outOfBand: {
+        allowedVendors: {},
+        disclosedVendors: {}
+      },
+      purpose: {
+        consents: this.purposeConsents,
+        legitimateInterests: {}
+      },
+      vendor: {
+        consents: vendorIds 
+          ? this.filterVendorConsents(vendorIds)
+          : this.vendorConsents,
+        legitimateInterests: {}
+      },
+      specialFeatureOptins: {},
+      publisher: {
+        consents: {},
+        legitimateInterests: {},
+        customPurpose: {
+          consents: {},
+          legitimateInterests: {}
+        },
+        restrictions: {}
+      }
+    };
+  }
+
+  /**
+   * Filter vendor consents by IDs
+   * @param {Array<number>} vendorIds - Vendor IDs
+   * @returns {Object} Filtered consents
+   */
+  filterVendorConsents(vendorIds) {
+    const filtered = {};
+    vendorIds.forEach(id => {
+      if (this.vendorConsents[id] !== undefined) {
+        filtered[id] = this.vendorConsents[id];
+      }
+    });
+    return filtered;
+  }
+
+  /**
+   * Get vendor list
+   * @param {number} _vendorListVersion - Optional version (unused, reserved for future use)
+   * @returns {Object} Vendor list
+   */
+  getVendorList(_vendorListVersion) {
+    return {
+      gvlSpecificationVersion: 2,
+      vendorListVersion: this.vendorListVersion,
+      tcfPolicyVersion: this.policyVersion,
+      lastUpdated: new Date().toISOString(),
+      purposes: this.getPurposesObject(),
+      specialPurposes: this.getSpecialPurposesObject(),
+      features: {},
+      specialFeatures: this.getSpecialFeaturesObject(),
+      vendors: this.getVendorsObject()
+    };
+  }
+
+  /**
+   * Get purposes as object
+   * @returns {Object} Purposes
+   */
+  getPurposesObject() {
+    const purposesObj = {};
+    this.purposes.forEach((purpose, id) => {
+      purposesObj[id] = purpose;
+    });
+    return purposesObj;
+  }
+
+  /**
+   * Get special purposes as object
+   * @returns {Object} Special purposes
+   */
+  getSpecialPurposesObject() {
+    const specialPurposesObj = {};
+    this.specialPurposes.forEach((purpose, id) => {
+      specialPurposesObj[id] = purpose;
+    });
+    return specialPurposesObj;
+  }
+
+  /**
+   * Get special features as object
+   * @returns {Object} Special features
+   */
+  getSpecialFeaturesObject() {
+    const specialFeaturesObj = {};
+    this.specialFeatures.forEach((feature, id) => {
+      specialFeaturesObj[id] = feature;
+    });
+    return specialFeaturesObj;
+  }
+
+  /**
+   * Get vendors as object
+   * @returns {Object} Vendors
+   */
+  getVendorsObject() {
+    const vendorsObj = {};
+    this.vendors.forEach((vendor, id) => {
+      vendorsObj[id] = vendor;
+    });
+    return vendorsObj;
+  }
+
+  /**
+   * Add event listener
+   * @param {Function} callback - Callback function
+   * @returns {void}
+   */
+  addEventListener(callback) {
+    // Store listener and call immediately with current data
+    callback(this.getTCData(), true);
+  }
+
+  /**
+   * Remove event listener
+   * @param {number} listenerId - Listener ID
+   * @returns {void}
+   */
+  removeEventListener(listenerId) {
+    // Implementation for removing event listeners
+    console.log(`[TCF] Remove listener: ${listenerId}`);
+  }
+
+  /**
+   * Load IAB vendor list
+   * @returns {Promise<void>}
+   */
+  async loadVendorList() {
+    try {
+      // Load official IAB Global Vendor List
+      const response = await fetch('https://vendor-list.consensu.org/v2/vendor-list.json');
+      const data = await response.json();
+      
+      this.vendorListVersion = data.vendorListVersion || 0;
+      
+      // Store vendors
+      if (data.vendors) {
+        Object.entries(data.vendors).forEach(([id, vendor]) => {
+          this.vendors.set(parseInt(id), vendor);
+        });
+      }
+
+      console.log(`[TCF] Loaded ${this.vendors.size} vendors from IAB GVL v${this.vendorListVersion}`);
+    } catch (error) {
+      console.error('[TCF] Failed to load vendor list:', error);
+      // Initialize with empty vendor list
+      this.vendors = new Map();
+      this.vendorListVersion = 0;
+    }
+  }
+
+  /**
+   * Load IAB purposes
+   * @returns {void}
+   */
+  loadPurposes() {
+    // Standard IAB TCF v2.2 purposes
+    this.purposes.set(1, {
+      id: 1,
+      name: 'Store and/or access information on a device',
+      description: 'Cookies, device identifiers, or other information can be stored or accessed on your device for the purposes presented to you.',
+      descriptionLegal: 'Vendors can: Store and access information on the device such as cookies and device identifiers presented to a user.'
+    });
+    
+    this.purposes.set(2, {
+      id: 2,
+      name: 'Select basic ads',
+      description: 'Ads can be shown to you based on the content you\'re viewing, the app you\'re using, your approximate location, or your device type.',
+      descriptionLegal: 'To do basic ad selection vendors can: Use real-time information about the context in which the ad will be shown.'
+    });
+    
+    this.purposes.set(3, {
+      id: 3,
+      name: 'Create a personalized ads profile',
+      description: 'A profile can be built about you and your interests to show you personalized ads that are relevant to you.',
+      descriptionLegal: 'To create a personalized ads profile vendors can: Collect information about a user, including a user\'s activity, interests, demographic information, or location.'
+    });
+    
+    this.purposes.set(4, {
+      id: 4,
+      name: 'Select personalized ads',
+      description: 'Personalized ads can be shown to you based on a profile about you.',
+      descriptionLegal: 'To select personalized ads vendors can: Select personalized ads based on a profile or other historical user data.'
+    });
+    
+    this.purposes.set(5, {
+      id: 5,
+      name: 'Create a personalized content profile',
+      description: 'A profile can be built about you and your interests to show you personalized content that is relevant to you.',
+      descriptionLegal: 'To create a personalized content profile vendors can: Collect information about a user, including a user\'s activity, interests, demographic information, or location.'
+    });
+    
+    this.purposes.set(6, {
+      id: 6,
+      name: 'Select personalized content',
+      description: 'Personalized content can be shown to you based on a profile about you.',
+      descriptionLegal: 'To select personalized content vendors can: Select personalized content based on a profile or other historical user data.'
+    });
+    
+    this.purposes.set(7, {
+      id: 7,
+      name: 'Measure ad performance',
+      description: 'The performance and effectiveness of ads that you see or interact with can be measured.',
+      descriptionLegal: 'To measure ad performance vendors can: Measure whether and how ads were delivered to and interacted with by a user.'
+    });
+    
+    this.purposes.set(8, {
+      id: 8,
+      name: 'Measure content performance',
+      description: 'The performance and effectiveness of content that you see or interact with can be measured.',
+      descriptionLegal: 'To measure content performance vendors can: Measure whether and how content was delivered to and interacted with by a user.'
+    });
+    
+    this.purposes.set(9, {
+      id: 9,
+      name: 'Apply market research to generate audience insights',
+      description: 'Market research can be used to learn more about the audiences who visit sites/apps and view ads.',
+      descriptionLegal: 'To apply market research to generate audience insights vendors can: Provide aggregate reporting to advertisers or their representatives about the audiences reached by their ads.'
+    });
+    
+    this.purposes.set(10, {
+      id: 10,
+      name: 'Develop and improve products',
+      description: 'Your data can be used to improve existing systems and software, and to develop new products.',
+      descriptionLegal: 'To develop new products and improve products vendors can: Use information to improve their existing products with new features and to develop new products.'
+    });
+
+    // Special features
+    this.specialFeatures.set(1, {
+      id: 1,
+      name: 'Use precise geolocation data',
+      description: 'Your precise geolocation data can be used in support of one or more purposes.'
+    });
+    
+    this.specialFeatures.set(2, {
+      id: 2,
+      name: 'Actively scan device characteristics for identification',
+      description: 'Your device can be identified based on a scan of your device\'s unique combination of characteristics.'
+    });
+
+    console.log(`[TCF] Loaded ${this.purposes.size} purposes and ${this.specialFeatures.size} special features`);
+  }
+
+  /**
+   * Update consent from categories
+   * @param {ConsentCategories} categories - Consent categories
+   * @returns {void}
+   */
+  updateConsent(categories) {
+    // Map CMP categories to TCF purposes
+    this.purposeConsents = {
+      1: categories.necessary,  // Store and access information
+      2: categories.marketing,  // Basic ads
+      3: categories.marketing,  // Personalized ads profile
+      4: categories.marketing,  // Select personalized ads
+      5: categories.preferences, // Personalized content profile
+      6: categories.preferences, // Select personalized content
+      7: categories.analytics,  // Measure ad performance
+      8: categories.analytics,  // Measure content performance
+      9: categories.analytics,  // Market research
+      10: categories.analytics  // Develop and improve products
+    };
+
+    // Set all vendors to the same consent status
+    // In a production system, this should be more granular
+    const hasMarketingConsent = categories.marketing;
+    this.vendors.forEach((vendor, id) => {
+      this.vendorConsents[id] = hasMarketingConsent;
+    });
+
+    // Generate TC String
+    this.tcString = this.generateTCString();
+    
+    // Update __tcfapi listeners
+    this.notifyListeners();
+    
+    console.log('[TCF] Consent updated, TC String:', this.tcString);
+  }
+
+  /**
+   * Generate TC String (simplified implementation)
+   * @returns {string} TC String
+   */
+  generateTCString() {
+    // This is a simplified TC String generation
+    // Production implementation should follow IAB TCF specification exactly
+    // TC String format: CPXxxx... (base64url encoded binary consent data)
+    
+    const version = 2;
+    const created = Math.floor(Date.now() / 100); // deciseconds
+    // Note: updated and consentScreen would be used in full TC String encoding
+    const _updated = created; // Reserved for future use
+    const cmpId = this.cmpId;
+    const cmpVersion = this.cmpVersion;
+    const _consentScreen = this.consentScreen; // Reserved for future use
+    const consentLanguage = this.consentLanguage;
+    const vendorListVersion = this.vendorListVersion;
+    
+    // Create a simplified identifier (not a real TC String)
+    // In production, use a proper TC String encoder library
+    const tcString = `CP${version}${cmpId}${cmpVersion}_${consentLanguage}${vendorListVersion}`;
+    
+    return btoa(tcString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  /**
+   * Notify listeners of consent changes
+   * @returns {void}
+   */
+  notifyListeners() {
+    // Dispatch event for any listeners
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tcfapi-update', {
+        detail: this.getTCData()
+      }));
+    }
+  }
+
+  /**
+   * Get current TC String
+   * @returns {string | null} TC String
+   */
+  getTCString() {
+    return this.tcString;
+  }
+}
+
+// ============================================================================
+// COOKIE SCANNER
+// ============================================================================
+
+/**
+ * @typedef {Object} DetectedCookie
+ * @property {string} name - Cookie name
+ * @property {string} value - Cookie value
+ * @property {string} domain - Cookie domain
+ * @property {string} path - Cookie path
+ * @property {boolean} secure - Whether cookie is secure
+ * @property {boolean} httpOnly - Whether cookie is HTTP only
+ * @property {string} sameSite - SameSite attribute
+ * @property {number | null} expires - Expiration timestamp
+ * @property {boolean} isFirstParty - Whether cookie is first-party
+ * @property {string} category - Detected category (necessary, analytics, marketing, preferences)
+ * @property {number} detectedAt - Timestamp when detected
+ */
+
+class CookieScanner {
+  constructor() {
+    /** @type {Map<string, DetectedCookie>} */
+    this.detectedCookies = new Map();
+    /** @type {number | null} */
+    this.scanIntervalId = null;
+    /** @type {number} */
+    this.scanInterval = 2000; // Scan every 2 seconds
+    /** @type {Object.<string, string>} */
+    this.cookiePatterns = this.initializeCookiePatterns();
+    /** @type {string | null} */
+    this.currentDomain = typeof window !== 'undefined' ? window.location.hostname : null;
+  }
+
+  /**
+   * Initialize cookie pattern mappings for automatic categorization
+   * @returns {Object.<string, string>} Pattern to category mappings
+   */
+  initializeCookiePatterns() {
+    return {
+      // Analytics cookies
+      '_ga': 'analytics',
+      '_gid': 'analytics',
+      '_gat': 'analytics',
+      '_gat_gtag': 'analytics',
+      '_gac': 'analytics',
+      '__utma': 'analytics',
+      '__utmb': 'analytics',
+      '__utmc': 'analytics',
+      '__utmt': 'analytics',
+      '__utmz': 'analytics',
+      '_hjid': 'analytics',
+      '_hjIncludedInPageviewSample': 'analytics',
+      '_hjAbsoluteSessionInProgress': 'analytics',
+      '_clck': 'analytics', // Microsoft Clarity
+      '_clsk': 'analytics',
+      'CLID': 'analytics',
+      
+      // Marketing/Advertising cookies
+      '_fbp': 'marketing',
+      '_fbc': 'marketing',
+      'fr': 'marketing', // Facebook
+      'tr': 'marketing',
+      '_gcl_au': 'marketing', // Google AdSense
+      '_gcl_aw': 'marketing',
+      '_gcl_dc': 'marketing',
+      'IDE': 'marketing', // Google DoubleClick
+      'DSID': 'marketing',
+      'test_cookie': 'marketing',
+      '__Secure-3PAPISID': 'marketing',
+      '__Secure-3PSID': 'marketing',
+      'NID': 'marketing',
+      '_ttp': 'marketing', // TikTok
+      '_ttp_pixel': 'marketing',
+      '__ttd': 'marketing',
+      'YSC': 'marketing', // YouTube
+      'VISITOR_INFO1_LIVE': 'marketing',
+      
+      // Preference cookies
+      'lang': 'preferences',
+      'language': 'preferences',
+      'i18n': 'preferences',
+      'locale': 'preferences',
+      'theme': 'preferences',
+      'timezone': 'preferences',
+      'currency': 'preferences',
+      
+      // Necessary cookies (authentication, session, security)
+      'PHPSESSID': 'necessary',
+      'JSESSIONID': 'necessary',
+      'ASPSESSIONID': 'necessary',
+      'session': 'necessary',
+      'csrf': 'necessary',
+      'XSRF-TOKEN': 'necessary',
+      '__cfduid': 'necessary', // Cloudflare
+      '__cf_bm': 'necessary',
+      'rs-cmp-consent': 'necessary' // Our own consent cookie
+    };
+  }
+
+  /**
+   * Categorize a cookie based on its name
+   * @param {string} cookieName - Cookie name
+   * @returns {string} Category (necessary, analytics, marketing, preferences)
+   */
+  categorizeCookie(cookieName) {
+    // Check exact matches first
+    if (this.cookiePatterns[cookieName]) {
+      return this.cookiePatterns[cookieName];
+    }
+    
+    // Check pattern matches (for cookies with dynamic suffixes)
+    for (const [pattern, category] of Object.entries(this.cookiePatterns)) {
+      if (cookieName.startsWith(pattern)) {
+        return category;
+      }
+    }
+    
+    // Default to preferences for unknown cookies
+    return 'preferences';
+  }
+
+  /**
+   * Check if cookie is first-party or third-party
+   * @param {string} cookieDomain - Cookie domain
+   * @returns {boolean} True if first-party
+   */
+  isFirstPartyCookie(cookieDomain) {
+    if (!this.currentDomain || !cookieDomain) {
+      return true; // Assume first-party if can't determine
+    }
+    
+    // Remove leading dot from domain
+    const cleanDomain = cookieDomain.startsWith('.') ? cookieDomain.substring(1) : cookieDomain;
+    const currentDomain = this.currentDomain;
+    
+    // Check if domains match or cookie domain is a parent domain
+    return currentDomain === cleanDomain || currentDomain.endsWith('.' + cleanDomain) || cleanDomain.endsWith('.' + currentDomain);
+  }
+
+  /**
+   * Parse cookies from document.cookie
+   * @returns {DetectedCookie[]} Array of detected cookies
+   */
+  scanCookies() {
+    if (typeof document === 'undefined') {
+      return [];
+    }
+    
+    const cookies = [];
+    const cookieStrings = document.cookie.split(';');
+    
+    for (const cookieString of cookieStrings) {
+      const trimmed = cookieString.trim();
+      if (!trimmed) continue;
+      
+      const [name, ...valueParts] = trimmed.split('=');
+      const value = valueParts.join('='); // Handle values with = in them
+      
+      if (!name) continue;
+      
+      // Try to get additional cookie info (limited in client-side JS)
+      const category = this.categorizeCookie(name);
+      const isFirstParty = this.isFirstPartyCookie(this.currentDomain);
+      
+      const detectedCookie = {
+        name: name,
+        value: value,
+        domain: this.currentDomain || '',
+        path: '/', // Can't easily detect from JS
+        secure: false, // Can't detect from JS
+        httpOnly: false, // Can't detect from JS (by definition)
+        sameSite: 'Lax',
+        expires: null,
+        isFirstParty: isFirstParty,
+        category: category,
+        detectedAt: Date.now()
+      };
+      
+      cookies.push(detectedCookie);
+    }
+    
+    return cookies;
+  }
+
+  /**
+   * Start continuous cookie monitoring
+   * @param {Function} [onNewCookie] - Callback when new cookie is detected
+   * @returns {void}
+   */
+  startMonitoring(onNewCookie) {
+    if (this.scanIntervalId) {
+      return; // Already monitoring
+    }
+    
+    console.log('[CookieScanner] Starting continuous monitoring...');
+    
+    // Initial scan
+    this.performScan(onNewCookie);
+    
+    // Set up periodic scanning
+    this.scanIntervalId = setInterval(() => {
+      this.performScan(onNewCookie);
+    }, this.scanInterval);
+  }
+
+  /**
+   * Perform a single scan
+   * @param {Function} [onNewCookie] - Callback when new cookie is detected
+   * @returns {void}
+   */
+  performScan(onNewCookie) {
+    const currentCookies = this.scanCookies();
+    
+    for (const cookie of currentCookies) {
+      const existingCookie = this.detectedCookies.get(cookie.name);
+      
+      if (!existingCookie) {
+        // New cookie detected
+        this.detectedCookies.set(cookie.name, cookie);
+        console.log(`[CookieScanner] New cookie detected: ${cookie.name} (${cookie.category})`);
+        
+        if (onNewCookie && typeof onNewCookie === 'function') {
+          onNewCookie(cookie);
+        }
+      } else if (existingCookie.value !== cookie.value) {
+        // Cookie value changed
+        this.detectedCookies.set(cookie.name, cookie);
+        console.log(`[CookieScanner] Cookie updated: ${cookie.name}`);
+      }
+    }
+  }
+
+  /**
+   * Stop cookie monitoring
+   * @returns {void}
+   */
+  stopMonitoring() {
+    if (this.scanIntervalId) {
+      clearInterval(this.scanIntervalId);
+      this.scanIntervalId = null;
+      console.log('[CookieScanner] Monitoring stopped');
+    }
+  }
+
+  /**
+   * Get all detected cookies
+   * @returns {DetectedCookie[]} Array of all detected cookies
+   */
+  getAllCookies() {
+    return Array.from(this.detectedCookies.values());
+  }
+
+  /**
+   * Get cookies by category
+   * @param {string} category - Category to filter by
+   * @returns {DetectedCookie[]} Filtered cookies
+   */
+  getCookiesByCategory(category) {
+    return this.getAllCookies().filter(cookie => cookie.category === category);
+  }
+
+  /**
+   * Get cookie report for backend
+   * @returns {Object} Cookie report
+   */
+  getCookieReport() {
+    const cookies = this.getAllCookies();
+    const report = {
+      timestamp: new Date().toISOString(),
+      domain: this.currentDomain,
+      totalCookies: cookies.length,
+      firstPartyCookies: cookies.filter(c => c.isFirstParty).length,
+      thirdPartyCookies: cookies.filter(c => !c.isFirstParty).length,
+      categories: {
+        necessary: this.getCookiesByCategory('necessary').length,
+        analytics: this.getCookiesByCategory('analytics').length,
+        marketing: this.getCookiesByCategory('marketing').length,
+        preferences: this.getCookiesByCategory('preferences').length
+      },
+      cookies: cookies.map(cookie => ({
+        name: cookie.name,
+        domain: cookie.domain,
+        category: cookie.category,
+        isFirstParty: cookie.isFirstParty,
+        detectedAt: cookie.detectedAt
+      }))
+    };
+    
+    return report;
+  }
+
+  /**
+   * Send cookie report to backend
+   * @param {string} apiUrl - Backend API URL
+   * @param {string} siteId - Site identifier
+   * @returns {Promise<void>}
+   */
+  async sendReportToBackend(apiUrl, siteId) {
+    try {
+      const report = this.getCookieReport();
+      
+      await fetch(`${apiUrl}/v1/cookies/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          siteId: siteId,
+          ...report
+        }),
+      });
+      
+      console.log('[CookieScanner] Report sent to backend');
+    } catch (error) {
+      console.error('[CookieScanner] Failed to send report:', error);
+    }
+  }
+
+  /**
+   * Clear all detected cookies
+   * @returns {void}
+   */
+  clear() {
+    this.detectedCookies.clear();
+  }
+}
+
+// ============================================================================
 // MAIN CMP CLASS
 // ============================================================================
 
@@ -1385,12 +2191,18 @@ class RSCMP {
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
     /** @type {ServiceLoader} */
     this.serviceLoader = new ServiceLoader(this.consentManager);
+    /** @type {TCFManager} */
+    this.tcfManager = new TCFManager();
+    /** @type {CookieScanner} */
+    this.cookieScanner = new CookieScanner();
     /** @type {Config | null} */
     this.config = null;
     /** @type {string | null} */
     this.siteId = null;
     /** @type {boolean} */
     this.debugMode = false;
+    /** @type {HTMLElement | null} */
+    this.reopenButton = null;
   }
 
   /**
@@ -1400,6 +2212,14 @@ class RSCMP {
    */
   async init(inlineConfig = null) {
     try {
+      // Initialize TCF 2.2
+      this.tcfManager.init();
+      
+      // Start cookie scanner monitoring
+      this.cookieScanner.startMonitoring((cookie) => {
+        this.handleNewCookie(cookie);
+      });
+      
       // Get site-id from script tag
       this.siteId = this.getSiteIdFromScript();
       
@@ -1420,6 +2240,8 @@ class RSCMP {
       if (existingConsent) {
         // Apply existing consent
         this.applyConsent(existingConsent.categories);
+        // Show reopen button
+        this.showReopenButton();
       } else {
         // Block all scripts by default
         this.scriptBlocker.blockScripts();
@@ -1431,6 +2253,11 @@ class RSCMP {
       // Listen for consent updates
       this.consentManager.on('consentUpdated', (categories) => {
         this.applyConsent(categories);
+      });
+
+      // Listen for banner close to show reopen button
+      this.consentManager.on('bannerClosed', () => {
+        this.showReopenButton();
       });
 
     } catch (error) {
@@ -1494,6 +2321,9 @@ class RSCMP {
     
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
+    
+    // Update TCF 2.2 consent
+    this.tcfManager.updateConsent(categories);
     
     // Load services based on consent
     this.serviceLoader.loadAllServices(categories);
@@ -1563,6 +2393,58 @@ class RSCMP {
   }
 
   /**
+   * Handle new cookie detection
+   * @param {DetectedCookie} cookie - Newly detected cookie
+   * @returns {void}
+   */
+  handleNewCookie(cookie) {
+    this.log('New cookie detected:', cookie.name, 'Category:', cookie.category);
+    
+    // Optionally send report to backend when new cookies are detected
+    // Only send every 10 seconds to avoid flooding the backend
+    if (this.siteId && this.config) {
+      const now = Date.now();
+      if (!this._lastCookieReport || (now - this._lastCookieReport) > 10000) {
+        this._lastCookieReport = now;
+        this.sendCookieReportToBackend();
+      }
+    }
+  }
+
+  /**
+   * Get cookie scanner report
+   * @returns {Object} Cookie report
+   */
+  getCookieReport() {
+    return this.cookieScanner.getCookieReport();
+  }
+
+  /**
+   * Get all detected cookies
+   * @returns {DetectedCookie[]} Array of detected cookies
+   */
+  getDetectedCookies() {
+    return this.cookieScanner.getAllCookies();
+  }
+
+  /**
+   * Send cookie report to backend
+   * @returns {Promise<void>}
+   */
+  async sendCookieReportToBackend() {
+    if (!this.siteId || !this.config) {
+      return;
+    }
+    
+    try {
+      const apiUrl = this.getApiUrl();
+      await this.cookieScanner.sendReportToBackend(apiUrl, this.siteId);
+    } catch (error) {
+      console.error('[RS-CMP] Failed to send cookie report:', error);
+    }
+  }
+
+  /**
    * Get CMP status (diagnostic method)
    * @returns {Object} Status information
    */
@@ -1572,7 +2454,14 @@ class RSCMP {
       siteId: this.siteId,
       consent: this.consentManager.getConsent(),
       blockedScripts: this.scriptBlocker.blockedScripts.length,
-      bannerVisible: !!this.bannerUI.bannerElement
+      bannerVisible: !!this.bannerUI.bannerElement,
+      detectedCookies: this.cookieScanner.getAllCookies().length,
+      cookieCategories: {
+        necessary: this.cookieScanner.getCookiesByCategory('necessary').length,
+        analytics: this.cookieScanner.getCookiesByCategory('analytics').length,
+        marketing: this.cookieScanner.getCookiesByCategory('marketing').length,
+        preferences: this.cookieScanner.getCookiesByCategory('preferences').length
+      }
     };
   }
 
@@ -1617,6 +2506,21 @@ class RSCMP {
         { id: 'preferences', name: 'Preferences', description: 'Remember your choices', required: false, enabled: false }
       ],
       translations: {
+        it: {
+          title: 'Rispettiamo la tua privacy',
+          description: 'Utilizziamo cookie per migliorare la tua esperienza sul nostro sito.',
+          acceptAll: 'Accetta tutto',
+          rejectAll: 'Rifiuta tutto',
+          customize: 'Personalizza',
+          save: 'Salva preferenze',
+          close: 'Chiudi',
+          categories: {
+            necessary: { name: 'Necessari', description: 'Cookie essenziali per il funzionamento del sito' },
+            analytics: { name: 'Analitici', description: 'Statistiche di utilizzo per migliorare il sito' },
+            marketing: { name: 'Marketing', description: 'Cookie pubblicitari per annunci personalizzati' },
+            preferences: { name: 'Preferenze', description: 'Le tue impostazioni personalizzate' }
+          }
+        },
         en: {
           title: 'We respect your privacy',
           description: 'We use cookies to improve your experience.',
@@ -1653,6 +2557,93 @@ class RSCMP {
   }
 
   /**
+   * Show reopen button (fixed bottom-left)
+   * @returns {void}
+   */
+  showReopenButton() {
+    if (this.reopenButton) {
+      return; // Already shown
+    }
+
+    // Create button
+    const button = document.createElement('button');
+    button.id = 'rs-cmp-reopen-btn';
+    button.setAttribute('aria-label', 'Privacy Settings');
+    button.title = 'Privacy Settings';
+    button.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" fill="currentColor"/>
+      </svg>
+    `;
+
+    // Add styles
+    if (!document.getElementById('rs-cmp-reopen-styles')) {
+      const style = document.createElement('style');
+      style.id = 'rs-cmp-reopen-styles';
+      style.textContent = `
+        #rs-cmp-reopen-btn {
+          position: fixed;
+          bottom: 20px;
+          left: 20px;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: #0084ff;
+          color: white;
+          border: none;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+          cursor: pointer;
+          z-index: 999998;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+        }
+        
+        #rs-cmp-reopen-btn:hover {
+          transform: scale(1.1);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        #rs-cmp-reopen-btn:focus {
+          outline: 2px solid #0084ff;
+          outline-offset: 2px;
+        }
+        
+        @media (max-width: 768px) {
+          #rs-cmp-reopen-btn {
+            bottom: 15px;
+            left: 15px;
+            width: 44px;
+            height: 44px;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Add click handler
+    button.addEventListener('click', () => {
+      this.showPreferences();
+    });
+
+    // Add to document
+    document.body.appendChild(button);
+    this.reopenButton = button;
+  }
+
+  /**
+   * Hide reopen button
+   * @returns {void}
+   */
+  hideReopenButton() {
+    if (this.reopenButton) {
+      this.reopenButton.remove();
+      this.reopenButton = null;
+    }
+  }
+
+  /**
    * Send consent data to backend
    * @private
    * @param {ConsentCategories} categories - Consent categories
@@ -1684,24 +2675,27 @@ class RSCMP {
 // ============================================================================
 
 // Auto-initialize on page load
+let cmpInstance = null;
+
 if (typeof window !== 'undefined') {
-  const cmp = new RSCMP();
+  cmpInstance = new RSCMP();
   
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => cmp.init().catch(err => {
+    document.addEventListener('DOMContentLoaded', () => cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     }));
   } else {
-    cmp.init().catch(err => {
+    cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     });
   }
 
   // Expose to window for manual control
-  window.RSCMP = cmp;
+  window.RSCMP = cmpInstance;
 }
 
 // Export for module systems
+// In browser (IIFE), export the instance; in Node, export the class
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = RSCMP;
+  module.exports = cmpInstance || RSCMP;
 }
