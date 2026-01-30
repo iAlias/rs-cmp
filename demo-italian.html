@@ -54,15 +54,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>🍪 Demo Italiano - TCF 2.2</h1>
+        <h1>🍪 Demo Italiano - RS-CMP</h1>
         <p>Clicca "Reset" per vedere il banner in italiano</p>
         
         <div class="demo-buttons">
             <button class="demo-btn" onclick="window.RSCMP.resetConsent()">
                 Reset e Mostra Banner
             </button>
-            <button class="demo-btn" onclick="testTCF()">
-                Test TCF API
+            <button class="demo-btn" onclick="testConsent()">
+                Verifica Consenso
             </button>
         </div>
         
@@ -84,19 +84,19 @@
     <script src="dist/cmp-js.js"></script>
     
     <script>
-        function testTCF() {
+        function testConsent() {
             const output = document.getElementById('output');
-            if (typeof window.__tcfapi === 'function') {
-                window.__tcfapi('getTCData', 2, (tcData, success) => {
-                    output.textContent = 'TCF Data:\n' + JSON.stringify({
-                        tcString: tcData.tcString,
-                        gdprApplies: tcData.gdprApplies,
-                        purposeConsents: tcData.purpose.consents,
-                        vendorConsents: Object.keys(tcData.vendor.consents).length + ' vendors'
-                    }, null, 2);
-                });
+            const consent = window.RSCMP.getConsent();
+            if (consent) {
+                output.textContent = 'Stato Consenso:\n' + JSON.stringify({
+                    necessary: consent.necessary,
+                    analytics: consent.analytics,
+                    marketing: consent.marketing,
+                    preferences: consent.preferences,
+                    timestamp: consent.timestamp
+                }, null, 2);
             } else {
-                output.textContent = '__tcfapi not available';
+                output.textContent = 'Nessun consenso ancora dato';
             }
         }
         

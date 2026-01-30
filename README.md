@@ -1,6 +1,6 @@
 # RS-CMP - Consent Management Platform
 
-A GDPR-compliant Consent Management Platform (CMP) that respects GDPR, ePrivacy, and TCF 2.2 standards.
+A GDPR-compliant Consent Management Platform (CMP) that respects GDPR and ePrivacy standards.
 
 ## Features
 
@@ -249,7 +249,6 @@ More languages can be added in the site configuration.
 - ✅ GDPR compliant
 - ✅ ePrivacy Directive compliant
 - ✅ Google Consent Mode v2 ready
-- ✅ TCF 2.2 foundation (v2 feature)
 
 ### 🎯 Performance
 
@@ -260,7 +259,6 @@ More languages can be added in the site configuration.
 
 ### 🔮 Roadmap (v2)
 
-- [ ] IAB TCF 2.2 full compliance
 - [ ] A/B testing for banner variations
 - [ ] Geo-targeting (EU-only mode)
 - [ ] Server-side consent API
