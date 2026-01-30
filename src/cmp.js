@@ -1445,8 +1445,6 @@ class TCFManager {
    * @returns {void}
    */
   setupTCFAPI() {
-    const tcfManager = this;
-    
     // Setup __tcfapi function
     window.__tcfapi = (command, version, callback, parameter) => {
       if (typeof callback !== 'function') {
@@ -1463,27 +1461,27 @@ class TCFManager {
             cmpStatus: 'loaded',
             displayStatus: 'visible',
             apiVersion: '2.2',
-            cmpVersion: tcfManager.cmpVersion,
-            cmpId: tcfManager.cmpId,
-            gvlVersion: tcfManager.vendorListVersion,
-            tcfPolicyVersion: tcfManager.policyVersion
+            cmpVersion: this.cmpVersion,
+            cmpId: this.cmpId,
+            gvlVersion: this.vendorListVersion,
+            tcfPolicyVersion: this.policyVersion
           }, true);
           break;
 
         case 'getTCData':
-          callback(tcfManager.getTCData(parameter), true);
+          callback(this.getTCData(parameter), true);
           break;
 
         case 'getVendorList':
-          callback(tcfManager.getVendorList(parameter), true);
+          callback(this.getVendorList(parameter), true);
           break;
 
         case 'addEventListener':
-          tcfManager.addEventListener(callback);
+          this.addEventListener(callback);
           break;
 
         case 'removeEventListener':
-          tcfManager.removeEventListener(parameter);
+          this.removeEventListener(parameter);
           break;
 
         default:
@@ -1559,10 +1557,10 @@ class TCFManager {
 
   /**
    * Get vendor list
-   * @param {number} vendorListVersion - Optional version
+   * @param {number} _vendorListVersion - Optional version (unused, reserved for future use)
    * @returns {Object} Vendor list
    */
-  getVendorList(vendorListVersion) {
+  getVendorList(_vendorListVersion) {
     return {
       gvlSpecificationVersion: 2,
       vendorListVersion: this.vendorListVersion,
@@ -1811,10 +1809,11 @@ class TCFManager {
     
     const version = 2;
     const created = Math.floor(Date.now() / 100); // deciseconds
-    const updated = created;
+    // Note: updated and consentScreen would be used in full TC String encoding
+    const _updated = created; // Reserved for future use
     const cmpId = this.cmpId;
     const cmpVersion = this.cmpVersion;
-    const consentScreen = this.consentScreen;
+    const _consentScreen = this.consentScreen; // Reserved for future use
     const consentLanguage = this.consentLanguage;
     const vendorListVersion = this.vendorListVersion;
     
