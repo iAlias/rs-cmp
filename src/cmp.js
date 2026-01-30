@@ -1905,6 +1905,14 @@ class RSCMP {
   }
 
   /**
+   * Get current consent status (public method)
+   * @returns {ConsentCategories | null} Current consent or null if not set
+   */
+  getConsent() {
+    return this.consentManager.getConsent();
+  }
+
+  /**
    * Enable debug mode
    * @returns {void}
    */
