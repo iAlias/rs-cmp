@@ -1847,6 +1847,333 @@ class TCFManager {
 }
 
 // ============================================================================
+// COOKIE SCANNER
+// ============================================================================
+
+/**
+ * @typedef {Object} DetectedCookie
+ * @property {string} name - Cookie name
+ * @property {string} value - Cookie value
+ * @property {string} domain - Cookie domain
+ * @property {string} path - Cookie path
+ * @property {boolean} secure - Whether cookie is secure
+ * @property {boolean} httpOnly - Whether cookie is HTTP only
+ * @property {string} sameSite - SameSite attribute
+ * @property {number | null} expires - Expiration timestamp
+ * @property {boolean} isFirstParty - Whether cookie is first-party
+ * @property {string} category - Detected category (necessary, analytics, marketing, preferences)
+ * @property {number} detectedAt - Timestamp when detected
+ */
+
+class CookieScanner {
+  constructor() {
+    /** @type {Map<string, DetectedCookie>} */
+    this.detectedCookies = new Map();
+    /** @type {number | null} */
+    this.scanIntervalId = null;
+    /** @type {number} */
+    this.scanInterval = 2000; // Scan every 2 seconds
+    /** @type {Object.<string, string>} */
+    this.cookiePatterns = this.initializeCookiePatterns();
+    /** @type {string | null} */
+    this.currentDomain = typeof window !== 'undefined' ? window.location.hostname : null;
+  }
+
+  /**
+   * Initialize cookie pattern mappings for automatic categorization
+   * @returns {Object.<string, string>} Pattern to category mappings
+   */
+  initializeCookiePatterns() {
+    return {
+      // Analytics cookies
+      '_ga': 'analytics',
+      '_gid': 'analytics',
+      '_gat': 'analytics',
+      '_gat_gtag': 'analytics',
+      '_gac': 'analytics',
+      '__utma': 'analytics',
+      '__utmb': 'analytics',
+      '__utmc': 'analytics',
+      '__utmt': 'analytics',
+      '__utmz': 'analytics',
+      '_hjid': 'analytics',
+      '_hjIncludedInPageviewSample': 'analytics',
+      '_hjAbsoluteSessionInProgress': 'analytics',
+      '_clck': 'analytics', // Microsoft Clarity
+      '_clsk': 'analytics',
+      'CLID': 'analytics',
+      
+      // Marketing/Advertising cookies
+      '_fbp': 'marketing',
+      '_fbc': 'marketing',
+      'fr': 'marketing', // Facebook
+      'tr': 'marketing',
+      '_gcl_au': 'marketing', // Google AdSense
+      '_gcl_aw': 'marketing',
+      '_gcl_dc': 'marketing',
+      'IDE': 'marketing', // Google DoubleClick
+      'DSID': 'marketing',
+      'test_cookie': 'marketing',
+      '__Secure-3PAPISID': 'marketing',
+      '__Secure-3PSID': 'marketing',
+      'NID': 'marketing',
+      '_ttp': 'marketing', // TikTok
+      '_ttp_pixel': 'marketing',
+      '__ttd': 'marketing',
+      'YSC': 'marketing', // YouTube
+      'VISITOR_INFO1_LIVE': 'marketing',
+      
+      // Preference cookies
+      'lang': 'preferences',
+      'language': 'preferences',
+      'i18n': 'preferences',
+      'locale': 'preferences',
+      'theme': 'preferences',
+      'timezone': 'preferences',
+      'currency': 'preferences',
+      
+      // Necessary cookies (authentication, session, security)
+      'PHPSESSID': 'necessary',
+      'JSESSIONID': 'necessary',
+      'ASPSESSIONID': 'necessary',
+      'session': 'necessary',
+      'csrf': 'necessary',
+      'XSRF-TOKEN': 'necessary',
+      '__cfduid': 'necessary', // Cloudflare
+      '__cf_bm': 'necessary',
+      'rs-cmp-consent': 'necessary' // Our own consent cookie
+    };
+  }
+
+  /**
+   * Categorize a cookie based on its name
+   * @param {string} cookieName - Cookie name
+   * @returns {string} Category (necessary, analytics, marketing, preferences)
+   */
+  categorizeCookie(cookieName) {
+    // Check exact matches first
+    if (this.cookiePatterns[cookieName]) {
+      return this.cookiePatterns[cookieName];
+    }
+    
+    // Check pattern matches (for cookies with dynamic suffixes)
+    for (const [pattern, category] of Object.entries(this.cookiePatterns)) {
+      if (cookieName.startsWith(pattern)) {
+        return category;
+      }
+    }
+    
+    // Default to preferences for unknown cookies
+    return 'preferences';
+  }
+
+  /**
+   * Check if cookie is first-party or third-party
+   * @param {string} cookieDomain - Cookie domain
+   * @returns {boolean} True if first-party
+   */
+  isFirstPartyCookie(cookieDomain) {
+    if (!this.currentDomain || !cookieDomain) {
+      return true; // Assume first-party if can't determine
+    }
+    
+    // Remove leading dot from domain
+    const cleanDomain = cookieDomain.startsWith('.') ? cookieDomain.substring(1) : cookieDomain;
+    const currentDomain = this.currentDomain;
+    
+    // Check if domains match or cookie domain is a parent domain
+    return currentDomain === cleanDomain || currentDomain.endsWith('.' + cleanDomain) || cleanDomain.endsWith('.' + currentDomain);
+  }
+
+  /**
+   * Parse cookies from document.cookie
+   * @returns {DetectedCookie[]} Array of detected cookies
+   */
+  scanCookies() {
+    if (typeof document === 'undefined') {
+      return [];
+    }
+    
+    const cookies = [];
+    const cookieStrings = document.cookie.split(';');
+    
+    for (const cookieString of cookieStrings) {
+      const trimmed = cookieString.trim();
+      if (!trimmed) continue;
+      
+      const [name, ...valueParts] = trimmed.split('=');
+      const value = valueParts.join('='); // Handle values with = in them
+      
+      if (!name) continue;
+      
+      // Try to get additional cookie info (limited in client-side JS)
+      const category = this.categorizeCookie(name);
+      const isFirstParty = this.isFirstPartyCookie(this.currentDomain);
+      
+      const detectedCookie = {
+        name: name,
+        value: value,
+        domain: this.currentDomain || '',
+        path: '/', // Can't easily detect from JS
+        secure: false, // Can't detect from JS
+        httpOnly: false, // Can't detect from JS (by definition)
+        sameSite: 'Lax',
+        expires: null,
+        isFirstParty: isFirstParty,
+        category: category,
+        detectedAt: Date.now()
+      };
+      
+      cookies.push(detectedCookie);
+    }
+    
+    return cookies;
+  }
+
+  /**
+   * Start continuous cookie monitoring
+   * @param {Function} [onNewCookie] - Callback when new cookie is detected
+   * @returns {void}
+   */
+  startMonitoring(onNewCookie) {
+    if (this.scanIntervalId) {
+      return; // Already monitoring
+    }
+    
+    console.log('[CookieScanner] Starting continuous monitoring...');
+    
+    // Initial scan
+    this.performScan(onNewCookie);
+    
+    // Set up periodic scanning
+    this.scanIntervalId = setInterval(() => {
+      this.performScan(onNewCookie);
+    }, this.scanInterval);
+  }
+
+  /**
+   * Perform a single scan
+   * @param {Function} [onNewCookie] - Callback when new cookie is detected
+   * @returns {void}
+   */
+  performScan(onNewCookie) {
+    const currentCookies = this.scanCookies();
+    
+    for (const cookie of currentCookies) {
+      const existingCookie = this.detectedCookies.get(cookie.name);
+      
+      if (!existingCookie) {
+        // New cookie detected
+        this.detectedCookies.set(cookie.name, cookie);
+        console.log(`[CookieScanner] New cookie detected: ${cookie.name} (${cookie.category})`);
+        
+        if (onNewCookie && typeof onNewCookie === 'function') {
+          onNewCookie(cookie);
+        }
+      } else if (existingCookie.value !== cookie.value) {
+        // Cookie value changed
+        this.detectedCookies.set(cookie.name, cookie);
+        console.log(`[CookieScanner] Cookie updated: ${cookie.name}`);
+      }
+    }
+  }
+
+  /**
+   * Stop cookie monitoring
+   * @returns {void}
+   */
+  stopMonitoring() {
+    if (this.scanIntervalId) {
+      clearInterval(this.scanIntervalId);
+      this.scanIntervalId = null;
+      console.log('[CookieScanner] Monitoring stopped');
+    }
+  }
+
+  /**
+   * Get all detected cookies
+   * @returns {DetectedCookie[]} Array of all detected cookies
+   */
+  getAllCookies() {
+    return Array.from(this.detectedCookies.values());
+  }
+
+  /**
+   * Get cookies by category
+   * @param {string} category - Category to filter by
+   * @returns {DetectedCookie[]} Filtered cookies
+   */
+  getCookiesByCategory(category) {
+    return this.getAllCookies().filter(cookie => cookie.category === category);
+  }
+
+  /**
+   * Get cookie report for backend
+   * @returns {Object} Cookie report
+   */
+  getCookieReport() {
+    const cookies = this.getAllCookies();
+    const report = {
+      timestamp: new Date().toISOString(),
+      domain: this.currentDomain,
+      totalCookies: cookies.length,
+      firstPartyCookies: cookies.filter(c => c.isFirstParty).length,
+      thirdPartyCookies: cookies.filter(c => !c.isFirstParty).length,
+      categories: {
+        necessary: this.getCookiesByCategory('necessary').length,
+        analytics: this.getCookiesByCategory('analytics').length,
+        marketing: this.getCookiesByCategory('marketing').length,
+        preferences: this.getCookiesByCategory('preferences').length
+      },
+      cookies: cookies.map(cookie => ({
+        name: cookie.name,
+        domain: cookie.domain,
+        category: cookie.category,
+        isFirstParty: cookie.isFirstParty,
+        detectedAt: cookie.detectedAt
+      }))
+    };
+    
+    return report;
+  }
+
+  /**
+   * Send cookie report to backend
+   * @param {string} apiUrl - Backend API URL
+   * @param {string} siteId - Site identifier
+   * @returns {Promise<void>}
+   */
+  async sendReportToBackend(apiUrl, siteId) {
+    try {
+      const report = this.getCookieReport();
+      
+      await fetch(`${apiUrl}/v1/cookies/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          siteId: siteId,
+          ...report
+        }),
+      });
+      
+      console.log('[CookieScanner] Report sent to backend');
+    } catch (error) {
+      console.error('[CookieScanner] Failed to send report:', error);
+    }
+  }
+
+  /**
+   * Clear all detected cookies
+   * @returns {void}
+   */
+  clear() {
+    this.detectedCookies.clear();
+  }
+}
+
+// ============================================================================
 // MAIN CMP CLASS
 // ============================================================================
 
@@ -1866,6 +2193,8 @@ class RSCMP {
     this.serviceLoader = new ServiceLoader(this.consentManager);
     /** @type {TCFManager} */
     this.tcfManager = new TCFManager();
+    /** @type {CookieScanner} */
+    this.cookieScanner = new CookieScanner();
     /** @type {Config | null} */
     this.config = null;
     /** @type {string | null} */
@@ -1885,6 +2214,11 @@ class RSCMP {
     try {
       // Initialize TCF 2.2
       this.tcfManager.init();
+      
+      // Start cookie scanner monitoring
+      this.cookieScanner.startMonitoring((cookie) => {
+        this.handleNewCookie(cookie);
+      });
       
       // Get site-id from script tag
       this.siteId = this.getSiteIdFromScript();
@@ -2059,6 +2393,58 @@ class RSCMP {
   }
 
   /**
+   * Handle new cookie detection
+   * @param {DetectedCookie} cookie - Newly detected cookie
+   * @returns {void}
+   */
+  handleNewCookie(cookie) {
+    this.log('New cookie detected:', cookie.name, 'Category:', cookie.category);
+    
+    // Optionally send report to backend when new cookies are detected
+    // Only send every 10 seconds to avoid flooding the backend
+    if (this.siteId && this.config) {
+      const now = Date.now();
+      if (!this._lastCookieReport || (now - this._lastCookieReport) > 10000) {
+        this._lastCookieReport = now;
+        this.sendCookieReportToBackend();
+      }
+    }
+  }
+
+  /**
+   * Get cookie scanner report
+   * @returns {Object} Cookie report
+   */
+  getCookieReport() {
+    return this.cookieScanner.getCookieReport();
+  }
+
+  /**
+   * Get all detected cookies
+   * @returns {DetectedCookie[]} Array of detected cookies
+   */
+  getDetectedCookies() {
+    return this.cookieScanner.getAllCookies();
+  }
+
+  /**
+   * Send cookie report to backend
+   * @returns {Promise<void>}
+   */
+  async sendCookieReportToBackend() {
+    if (!this.siteId || !this.config) {
+      return;
+    }
+    
+    try {
+      const apiUrl = this.getApiUrl();
+      await this.cookieScanner.sendReportToBackend(apiUrl, this.siteId);
+    } catch (error) {
+      console.error('[RS-CMP] Failed to send cookie report:', error);
+    }
+  }
+
+  /**
    * Get CMP status (diagnostic method)
    * @returns {Object} Status information
    */
@@ -2068,7 +2454,14 @@ class RSCMP {
       siteId: this.siteId,
       consent: this.consentManager.getConsent(),
       blockedScripts: this.scriptBlocker.blockedScripts.length,
-      bannerVisible: !!this.bannerUI.bannerElement
+      bannerVisible: !!this.bannerUI.bannerElement,
+      detectedCookies: this.cookieScanner.getAllCookies().length,
+      cookieCategories: {
+        necessary: this.cookieScanner.getCookiesByCategory('necessary').length,
+        analytics: this.cookieScanner.getCookiesByCategory('analytics').length,
+        marketing: this.cookieScanner.getCookiesByCategory('marketing').length,
+        preferences: this.cookieScanner.getCookiesByCategory('preferences').length
+      }
     };
   }
 
@@ -2282,24 +2675,27 @@ class RSCMP {
 // ============================================================================
 
 // Auto-initialize on page load
+let cmpInstance = null;
+
 if (typeof window !== 'undefined') {
-  const cmp = new RSCMP();
+  cmpInstance = new RSCMP();
   
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => cmp.init().catch(err => {
+    document.addEventListener('DOMContentLoaded', () => cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     }));
   } else {
-    cmp.init().catch(err => {
+    cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     });
   }
 
   // Expose to window for manual control
-  window.RSCMP = cmp;
+  window.RSCMP = cmpInstance;
 }
 
 // Export for module systems
+// In browser (IIFE), export the instance; in Node, export the class
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = RSCMP;
+  module.exports = cmpInstance || RSCMP;
 }
