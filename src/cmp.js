@@ -2114,21 +2114,6 @@ class RSCMP {
         { id: 'preferences', name: 'Preferences', description: 'Remember your choices', required: false, enabled: false }
       ],
       translations: {
-        en: {
-          title: 'We respect your privacy',
-          description: 'We use cookies to improve your experience.',
-          acceptAll: 'Accept All',
-          rejectAll: 'Reject All',
-          customize: 'Customize',
-          save: 'Save Preferences',
-          close: 'Close',
-          categories: {
-            necessary: { name: 'Necessary', description: 'Essential cookies' },
-            analytics: { name: 'Analytics', description: 'Usage statistics' },
-            marketing: { name: 'Marketing', description: 'Advertising cookies' },
-            preferences: { name: 'Preferences', description: 'Your settings' }
-          }
-        },
         it: {
           title: 'Rispettiamo la tua privacy',
           description: 'Utilizziamo cookie per migliorare la tua esperienza sul nostro sito.',
@@ -2142,6 +2127,21 @@ class RSCMP {
             analytics: { name: 'Analitici', description: 'Statistiche di utilizzo per migliorare il sito' },
             marketing: { name: 'Marketing', description: 'Cookie pubblicitari per annunci personalizzati' },
             preferences: { name: 'Preferenze', description: 'Le tue impostazioni personalizzate' }
+          }
+        },
+        en: {
+          title: 'We respect your privacy',
+          description: 'We use cookies to improve your experience.',
+          acceptAll: 'Accept All',
+          rejectAll: 'Reject All',
+          customize: 'Customize',
+          save: 'Save Preferences',
+          close: 'Close',
+          categories: {
+            necessary: { name: 'Necessary', description: 'Essential cookies' },
+            analytics: { name: 'Analytics', description: 'Usage statistics' },
+            marketing: { name: 'Marketing', description: 'Advertising cookies' },
+            preferences: { name: 'Preferences', description: 'Your settings' }
           }
         }
       }
