@@ -236,6 +236,9 @@
     <script src="dist/cmp-js.js"></script>
     
     <script>
+        // Track if RSCMP is initialized to avoid unnecessary retries
+        let rscmpInitialized = false;
+        
         // Add some test cookies to demonstrate categorization
         function addTestCookies() {
             // Analytics cookies
@@ -275,17 +278,36 @@
             }, 1000);
         }
         
-        function refreshCookieList() {
+        function refreshCookieList(retryCount = 0) {
+            const MAX_RETRIES = 20; // Max 10 seconds (20 * 500ms)
+            
             // Wait for RSCMP to be available
             if (!window.RSCMP) {
+                if (retryCount >= MAX_RETRIES) {
+                    console.error('RSCMP failed to initialize after maximum retries');
+                    return;
+                }
                 console.log('Waiting for RSCMP to initialize...');
-                setTimeout(refreshCookieList, 500);
+                setTimeout(() => refreshCookieList(retryCount + 1), 500);
                 return;
             }
             
-            if (!window.RSCMP.cookieScanner) {
-                console.error('CookieScanner not available');
+            // Check if public methods are available
+            if (typeof window.RSCMP.getDetectedCookies !== 'function' || 
+                typeof window.RSCMP.getCookieReport !== 'function') {
+                if (retryCount >= MAX_RETRIES) {
+                    console.error('RSCMP methods failed to become available after maximum retries');
+                    return;
+                }
+                console.log('Waiting for RSCMP methods to be available...');
+                setTimeout(() => refreshCookieList(retryCount + 1), 500);
                 return;
+            }
+            
+            // Mark as initialized on first successful check
+            if (!rscmpInitialized) {
+                rscmpInitialized = true;
+                console.log('RSCMP initialized successfully');
             }
             
             const cookies = window.RSCMP.getDetectedCookies();
@@ -396,9 +418,12 @@
                 refreshCookieList();
             }, 1000);
             
-            // Auto-refresh every 5 seconds
+            // Auto-refresh every 5 seconds (only if RSCMP is initialized)
             setInterval(() => {
-                refreshCookieList();
+                // Skip retries if RSCMP is already initialized
+                if (rscmpInitialized) {
+                    refreshCookieList();
+                }
             }, 5000);
         });
     </script>

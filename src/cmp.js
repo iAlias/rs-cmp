@@ -346,6 +346,8 @@ class ScriptBlocker {
     this.consentManager = consentManager;
     /** @type {HTMLScriptElement[]} */
     this.blockedScripts = [];
+    /** @type {MutationObserver | null} */
+    this.scriptObserver = null;
   }
 
   /**
@@ -414,6 +416,9 @@ class ScriptBlocker {
 
     // Also scan for common tracking scripts
     this.scanAndBlockCommonScripts();
+    
+    // Start observing DOM for dynamically added scripts (for SPAs)
+    this.startScriptObserver();
   }
 
   /**
@@ -498,6 +503,102 @@ class ScriptBlocker {
     // Initialize Facebook Pixel if marketing is consented
     if (categories.marketing && typeof window.fbq === 'function') {
       window.fbq('consent', 'grant');
+    }
+  }
+
+  /**
+   * Start observing DOM for dynamically added scripts (for SPAs)
+   * @private
+   * @returns {void}
+   */
+  startScriptObserver() {
+    // Check if MutationObserver is available
+    if (typeof MutationObserver === 'undefined') {
+      console.warn('[RS-CMP] MutationObserver not available, dynamic script blocking disabled');
+      return;
+    }
+
+    // Don't create multiple observers
+    if (this.scriptObserver) {
+      return;
+    }
+
+    this.scriptObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        // Check for added nodes
+        mutation.addedNodes.forEach((node) => {
+          // Only process script elements
+          if (node.nodeName === 'SCRIPT') {
+            this.processNewScript(node);
+          }
+          // Also check children in case a container with scripts was added
+          if (node.querySelectorAll) {
+            const scripts = node.querySelectorAll('script');
+            scripts.forEach((script) => this.processNewScript(script));
+          }
+        });
+      });
+    });
+
+    // Start observing the document for script additions
+    this.scriptObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+
+    console.log('[RS-CMP] Script observer started for dynamic script blocking');
+  }
+
+  /**
+   * Process a newly added script element
+   * @private
+   * @param {HTMLScriptElement} script - Script element to process
+   * @returns {void}
+   */
+  processNewScript(script) {
+    // Skip if already processed
+    if (script.getAttribute('data-rs-cmp-processed')) {
+      return;
+    }
+
+    // Mark as processed
+    script.setAttribute('data-rs-cmp-processed', 'true');
+
+    // Check if script has data-category
+    let category = script.getAttribute('data-category');
+
+    // If no category, try to detect it
+    if (!category) {
+      const src = script.src || '';
+      const content = script.textContent || '';
+      category = this.detectCategory(src + ' ' + content);
+    }
+
+    // Block if it's a trackable category and user hasn't consented
+    if (category && category !== 'necessary') {
+      const consent = this.consentManager.getConsent();
+      
+      // If no consent yet or consent not given for this category, block it
+      if (!consent || !consent[category]) {
+        script.setAttribute('data-category', category);
+        script.setAttribute('data-original-type', script.type || 'text/javascript');
+        script.type = 'text/plain';
+        this.blockedScripts.push(script);
+        console.log(`[RS-CMP] Blocked dynamically added ${category} script`);
+      }
+    }
+  }
+
+  /**
+   * Stop observing DOM for script changes
+   * @private
+   * @returns {void}
+   */
+  stopScriptObserver() {
+    if (this.scriptObserver) {
+      this.scriptObserver.disconnect();
+      this.scriptObserver = null;
+      console.log('[RS-CMP] Script observer stopped');
     }
   }
 }
@@ -1410,11 +1511,11 @@ class BannerUI {
  * @property {string} name - Cookie name
  * @property {string} value - Cookie value
  * @property {string} domain - Cookie domain
- * @property {string} path - Cookie path
- * @property {boolean} secure - Whether cookie is secure
- * @property {boolean} httpOnly - Whether cookie is HTTP only
- * @property {string} sameSite - SameSite attribute
- * @property {number | null} expires - Expiration timestamp
+ * @property {string | null} path - Cookie path (cannot be reliably detected client-side, defaults to '/')
+ * @property {boolean | null} secure - Whether cookie is secure (cannot be detected client-side)
+ * @property {boolean} httpOnly - Whether cookie is HTTP only (always false for client-side detection)
+ * @property {string} sameSite - SameSite attribute (assumed 'Lax' when not detectable)
+ * @property {number | null} expires - Expiration timestamp (not available client-side)
  * @property {boolean} isFirstParty - Whether cookie is first-party
  * @property {string} category - Detected category (necessary, analytics, marketing, preferences)
  * @property {number} detectedAt - Timestamp when detected
@@ -1569,11 +1670,11 @@ class CookieScanner {
         name: name,
         value: value,
         domain: this.currentDomain || '',
-        path: '/', // Can't easily detect from JS
-        secure: false, // Can't detect from JS
-        httpOnly: false, // Can't detect from JS (by definition)
-        sameSite: 'Lax',
-        expires: null,
+        path: '/', // Cannot be reliably detected from client-side JS
+        secure: null, // Cannot be detected from client-side JS
+        httpOnly: false, // Cannot be detected from JS (by definition, httpOnly cookies are not accessible)
+        sameSite: 'Lax', // Assumed default, cannot be reliably detected
+        expires: null, // Not available from document.cookie
         isFirstParty: isFirstParty,
         category: category,
         detectedAt: Date.now()
@@ -1864,7 +1965,7 @@ class RSCMP {
    * Apply consent to scripts and services
    * @private
    * @param {ConsentCategories} categories - Consent categories
-   * @param {boolean} shouldReload - Whether to reload the page after applying consent
+   * @param {boolean} shouldReload - Whether to reload the page after applying consent (deprecated, kept for backwards compatibility)
    * @returns {void}
    */
   applyConsent(categories, shouldReload = false) {
@@ -1882,12 +1983,11 @@ class RSCMP {
       this.sendConsentToBackend(categories);
     }
 
-    // Reload page to properly apply script blocking/unblocking
+    // Note: Page reload removed in favor of hot-swapping consent changes
+    // Scripts are now unblocked and services loaded dynamically without reload
+    // This provides a smoother user experience
     if (shouldReload) {
-      // Small delay to ensure consent is saved
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
+      console.log('[RS-CMP] Page reload requested but skipped - using hot-swapping instead');
     }
   }
 
@@ -2251,13 +2351,26 @@ if (typeof window !== 'undefined') {
     // Block scripts immediately
     cmpInstance.scriptBlocker.blockScripts();
     
-    document.addEventListener('DOMContentLoaded', () => cmpInstance.init().catch(err => {
-      console.error('[RS-CMP] Auto-initialization failed:', err);
-    }));
-  } else {
-    cmpInstance.init().catch(err => {
-      console.error('[RS-CMP] Auto-initialization failed:', err);
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check if auto-initialization is disabled
+      if (window.RSCMP_AUTO_INIT === false) {
+        console.log('[RS-CMP] Auto-initialization disabled by RSCMP_AUTO_INIT flag');
+        return;
+      }
+      
+      cmpInstance.init().catch(err => {
+        console.error('[RS-CMP] Auto-initialization failed:', err);
+      });
     });
+  } else {
+    // Check if auto-initialization is disabled
+    if (window.RSCMP_AUTO_INIT === false) {
+      console.log('[RS-CMP] Auto-initialization disabled by RSCMP_AUTO_INIT flag');
+    } else {
+      cmpInstance.init().catch(err => {
+        console.error('[RS-CMP] Auto-initialization failed:', err);
+      });
+    }
   }
 
   // Expose to window for manual control

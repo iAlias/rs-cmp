@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Production Features - RS-CMP</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #1a202c;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .feature-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border-left: 4px solid #3182ce;
+        }
+        
+        .feature-section h2 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .demo-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #3182ce;
+            color: white;
+        }
+        
+        .demo-btn:hover {
+            background: #2c5aa0;
+            transform: translateY(-2px);
+        }
+        
+        .demo-btn.secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+        
+        .demo-btn.secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Production Features Demo - RS-CMP</h1>
+        <p class="subtitle">Testing AUTO_INIT, MutationObserver, JSDoc fixes, and Hot-swapping</p>
+        
+        <!-- Feature 1: AUTO_INIT -->
+        <div class="feature-section">
+            <h2>1. AUTO_INIT Flag Test</h2>
+            <p>Test the <code>window.RSCMP_AUTO_INIT</code> flag that prevents auto-initialization.</p>
+            
+            <div id="autoinit-status" class="status info">
+                Checking AUTO_INIT status...
+            </div>
+            
+            <div class="code-block">
+// To disable auto-init:
+window.RSCMP_AUTO_INIT = false;
+// Then load script, and manually call:
+window.RSCMP.init();
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="manualInit()">
+                    Manual Init Test
+                </button>
+                <button class="demo-btn secondary" onclick="checkInitStatus()">
+                    Check Status
+                </button>
+            </div>
+        </div>
+        
+        <!-- Feature 2: MutationObserver -->
+        <div class="feature-section">
+            <h2>2. MutationObserver for Dynamic Scripts</h2>
+            <p>Test dynamic script injection and automatic blocking by MutationObserver.</p>
+            
+            <div id="observer-status" class="status info">
+                Ready to test dynamic script injection...
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="injectAnalyticsScript()">
+                    Inject Analytics Script
+                </button>
+                <button class="demo-btn" onclick="injectMarketingScript()">
+                    Inject Marketing Script
+                </button>
+                <button class="demo-btn secondary" onclick="checkBlockedScripts()">
+                    Show Blocked Scripts
+                </button>
+            </div>
+            
+            <div id="observer-log" class="log"></div>
+        </div>
+        
+        <!-- Feature 3: JSDoc/Cookie Scanner -->
+        <div class="feature-section">
+            <h2>3. Cookie Scanner with Fixed JSDoc</h2>
+            <p>Verify that cookie properties correctly show null for undetectable values.</p>
+            
+            <div id="cookie-status" class="status info">
+                Click to scan cookies...
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="testCookieScanner()">
+                    Scan Cookies
+                </button>
+                <button class="demo-btn secondary" onclick="addTestCookie()">
+                    Add Test Cookie
+                </button>
+            </div>
+            
+            <div id="cookie-log" class="log"></div>
+        </div>
+        
+        <!-- Feature 4: Hot-swapping -->
+        <div class="feature-section">
+            <h2>4. Hot-swapping (No Page Reload)</h2>
+            <p>Test consent changes without page reload - should see services load dynamically.</p>
+            
+            <div id="hotswap-status" class="status info">
+                Ready to test hot-swapping...
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="testHotSwap()">
+                    Enable Analytics (No Reload)
+                </button>
+                <button class="demo-btn secondary" onclick="testRevertConsent()">
+                    Disable Analytics
+                </button>
+                <button class="demo-btn secondary" onclick="openPreferences()">
+                    Open Preferences
+                </button>
+            </div>
+            
+            <div id="hotswap-log" class="log"></div>
+        </div>
+        
+        <!-- Console Log Mirror -->
+        <div class="feature-section">
+            <h2>📋 Console Log Mirror</h2>
+            <div id="console-mirror" class="log"></div>
+        </div>
+    </div>
+    
+    <!-- Load CMP -->
+    <script src="dist/cmp-js.js"></script>
+    
+    <script>
+        // Console log mirror
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const mirrorDiv = document.getElementById('console-mirror');
+        
+        function addToMirror(type, message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = type === 'error' ? '#dc3545' : type === 'warn' ? '#ffc107' : '#28a745';
+            entry.textContent = `[${type.toUpperCase()}] ${message}`;
+            mirrorDiv.appendChild(entry);
+            mirrorDiv.scrollTop = mirrorDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToMirror('log', args.join(' '));
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToMirror('error', args.join(' '));
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToMirror('warn', args.join(' '));
+        };
+        
+        // Feature 1: AUTO_INIT Tests
+        function checkInitStatus() {
+            const status = document.getElementById('autoinit-status');
+            if (!window.RSCMP) {
+                status.className = 'status warning';
+                status.textContent = '❌ RSCMP not loaded yet';
+                return;
+            }
+            
+            const hasConfig = !!window.RSCMP.config;
+            if (hasConfig) {
+                status.className = 'status success';
+                status.textContent = '✅ RSCMP is initialized and ready';
+            } else {
+                status.className = 'status warning';
+                status.textContent = '⚠️ RSCMP loaded but not initialized (call init() manually)';
+            }
+        }
+        
+        function manualInit() {
+            if (!window.RSCMP) {
+                alert('RSCMP not loaded!');
+                return;
+            }
+            
+            window.RSCMP.init().then(() => {
+                checkInitStatus();
+                alert('Manual initialization completed!');
+            }).catch(err => {
+                alert('Init failed: ' + err.message);
+            });
+        }
+        
+        // Feature 2: MutationObserver Tests
+        function injectAnalyticsScript() {
+            const script = document.createElement('script');
+            script.setAttribute('data-category', 'analytics');
+            script.textContent = 'console.log("Analytics script executed!");';
+            document.body.appendChild(script);
+            
+            setTimeout(() => {
+                updateObserverLog('Injected analytics script');
+                checkBlockedScripts();
+            }, 100);
+        }
+        
+        function injectMarketingScript() {
+            const script = document.createElement('script');
+            script.src = 'https://connect.facebook.net/en_US/fbevents.js';
+            document.body.appendChild(script);
+            
+            setTimeout(() => {
+                updateObserverLog('Injected Facebook Pixel script');
+                checkBlockedScripts();
+            }, 100);
+        }
+        
+        function checkBlockedScripts() {
+            if (!window.RSCMP || !window.RSCMP.scriptBlocker) {
+                updateObserverLog('❌ ScriptBlocker not available');
+                return;
+            }
+            
+            const blocked = window.RSCMP.scriptBlocker.blockedScripts.length;
+            const status = document.getElementById('observer-status');
+            status.className = 'status success';
+            status.textContent = `📊 Currently blocking ${blocked} scripts`;
+            
+            updateObserverLog(`Total blocked scripts: ${blocked}`);
+        }
+        
+        function updateObserverLog(message) {
+            const log = document.getElementById('observer-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Feature 3: Cookie Scanner Tests
+        function testCookieScanner() {
+            if (!window.RSCMP) {
+                alert('RSCMP not loaded!');
+                return;
+            }
+            
+            const cookies = window.RSCMP.getDetectedCookies();
+            const log = document.getElementById('cookie-log');
+            log.innerHTML = '';
+            
+            if (cookies.length === 0) {
+                log.innerHTML = '<div class="log-entry">No cookies detected</div>';
+                return;
+            }
+            
+            cookies.forEach(cookie => {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `
+                    <strong>${cookie.name}</strong>: ${cookie.category}<br>
+                    - path: ${cookie.path} (type: ${typeof cookie.path})<br>
+                    - secure: ${cookie.secure} (type: ${typeof cookie.secure})<br>
+                    - expires: ${cookie.expires} (type: ${typeof cookie.expires})
+                `;
+                log.appendChild(entry);
+            });
+            
+            const status = document.getElementById('cookie-status');
+            status.className = 'status success';
+            status.textContent = `✅ Scanned ${cookies.length} cookies - check properties`;
+        }
+        
+        function addTestCookie() {
+            document.cookie = "test_cookie=production_test; path=/";
+            setTimeout(testCookieScanner, 500);
+        }
+        
+        // Feature 4: Hot-swapping Tests
+        function testHotSwap() {
+            if (!window.RSCMP) {
+                alert('RSCMP not loaded!');
+                return;
+            }
+            
+            const log = document.getElementById('hotswap-log');
+            const startTime = Date.now();
+            
+            // Get current consent
+            const currentConsent = window.RSCMP.getConsent() || {
+                necessary: true,
+                analytics: false,
+                marketing: false,
+                preferences: false
+            };
+            
+            // Enable analytics
+            const newConsent = { ...currentConsent, analytics: true };
+            
+            updateHotswapLog('🔄 Applying consent change (analytics: true)...');
+            updateHotswapLog('⚠️ Watching for page reload...');
+            
+            // Set consent
+            window.RSCMP.consentManager.setConsent(newConsent, '1.0');
+            
+            // Check if page reloaded
+            setTimeout(() => {
+                const elapsed = Date.now() - startTime;
+                updateHotswapLog(`✅ No page reload after ${elapsed}ms - hot-swapping works!`);
+                
+                const status = document.getElementById('hotswap-status');
+                status.className = 'status success';
+                status.textContent = '✅ Hot-swapping successful - no page reload!';
+            }, 1000);
+        }
+        
+        function testRevertConsent() {
+            if (!window.RSCMP) {
+                alert('RSCMP not loaded!');
+                return;
+            }
+            
+            const newConsent = {
+                necessary: true,
+                analytics: false,
+                marketing: false,
+                preferences: false
+            };
+            
+            updateHotswapLog('🔄 Disabling analytics...');
+            window.RSCMP.consentManager.setConsent(newConsent, '1.0');
+            
+            setTimeout(() => {
+                updateHotswapLog('✅ Consent reverted without reload');
+            }, 500);
+        }
+        
+        function openPreferences() {
+            if (window.RSCMP && window.RSCMP.showPreferences) {
+                window.RSCMP.showPreferences();
+            }
+        }
+        
+        function updateHotswapLog(message) {
+            const log = document.getElementById('hotswap-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Initial status check
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkInitStatus();
+                checkBlockedScripts();
+                console.log('Demo page loaded and ready for testing');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
