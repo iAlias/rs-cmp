@@ -1446,7 +1446,7 @@ class TCFManager {
     this.cmpId = 1; // In produzione: ottenere ID ufficiale da IAB
     /** @type {number} - Versione della CMP */
     this.cmpVersion = 1;
-    /** @type {string} - Numero dello schermo dove è stato dato il consenso */
+    /** @type {number} - Numero dello schermo dove è stato dato il consenso */
     this.consentScreen = 1; // Utile per tracking multi-step
     /** @type {string} - Lingua in cui è stato presentato il consenso (ISO 639-1) */
     this.consentLanguage = 'IT'; // IT = Italiano
