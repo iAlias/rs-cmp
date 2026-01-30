@@ -2376,9 +2376,3 @@ if (typeof window !== 'undefined') {
   // Expose to window for manual control
   window.RSCMP = cmpInstance;
 }
-
-// Export for module systems
-// In browser (IIFE), export the instance; in Node, export the class
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = cmpInstance || RSCMP;
-}

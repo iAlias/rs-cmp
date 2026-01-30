@@ -11,3 +11,4 @@ coverage/
 .cache/
 tmp/
 demo.html
+test-double-load.html
