@@ -1009,6 +1009,9 @@ class BannerUI {
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
 
+    // Get current consent to populate checkboxes
+    const currentConsent = this.consentManager.getConsent();
+
     const modal = document.createElement('div');
     modal.id = 'rs-cmp-customize-modal';
     modal.setAttribute('role', 'dialog');
@@ -1019,7 +1022,10 @@ class BannerUI {
       <div class="rs-cmp-modal-content">
         <h2>${this.escapeHtml(translations.customize)}</h2>
         <div class="rs-cmp-categories">
-          ${this.config.categories.map((cat) => `
+          ${this.config.categories.map((cat) => {
+            // Determine if checkbox should be checked based on saved consent
+            const isChecked = cat.required || (currentConsent && currentConsent[cat.id]) || false;
+            return `
             <div class="rs-cmp-category">
               <div class="rs-cmp-category-header">
                 <label>
@@ -1027,7 +1033,7 @@ class BannerUI {
                     type="checkbox" 
                     name="${cat.id}" 
                     ${cat.required ? 'checked disabled' : ''}
-                    ${cat.enabled ? 'checked' : ''}
+                    ${isChecked ? 'checked' : ''}
                   />
                   <div>
                     <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
@@ -1046,7 +1052,8 @@ class BannerUI {
               </div>
               ${this.getServicesForCategory(cat.id)}
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
         <div class="rs-cmp-modal-buttons">
           <button class="rs-cmp-btn rs-cmp-btn-accept" id="rs-cmp-save-preferences">
@@ -1395,458 +1402,6 @@ class BannerUI {
 }
 
 // ============================================================================
-// TCF 2.2 MANAGER (IAB Transparency & Consent Framework)
-// ============================================================================
-
-class TCFManager {
-  constructor() {
-    /** @type {number} */
-    this.tcfVersion = 2.2;
-    /** @type {Map<number, Object>} */
-    this.vendors = new Map(); // IAB vendor list
-    /** @type {Map<number, Object>} */
-    this.purposes = new Map(); // IAB purposes
-    /** @type {Map<number, Object>} */
-    this.specialFeatures = new Map(); // IAB special features
-    /** @type {Map<number, Object>} */
-    this.specialPurposes = new Map(); // IAB special purposes
-    /** @type {string | null} */
-    this.tcString = null;
-    /** @type {Object} */
-    this.vendorConsents = {};
-    /** @type {Object} */
-    this.purposeConsents = {};
-    /** @type {number} */
-    this.cmpId = 1; // CMP ID (should be registered with IAB)
-    /** @type {number} */
-    this.cmpVersion = 1;
-    /** @type {string} */
-    this.consentScreen = 1;
-    /** @type {string} */
-    this.consentLanguage = 'IT';
-    /** @type {number} */
-    this.vendorListVersion = 0;
-    /** @type {number} */
-    this.policyVersion = 2;
-  }
-
-  /**
-   * Initialize TCF API
-   * @returns {void}
-   */
-  init() {
-    this.setupTCFAPI();
-    this.loadVendorList();
-    this.loadPurposes();
-  }
-
-  /**
-   * Setup IAB TCF API window.__tcfapi
-   * @returns {void}
-   */
-  setupTCFAPI() {
-    // Setup __tcfapi function
-    window.__tcfapi = (command, version, callback, parameter) => {
-      if (typeof callback !== 'function') {
-        console.error('[TCF] Callback must be a function');
-        return;
-      }
-
-      // Handle commands
-      switch (command) {
-        case 'ping':
-          callback({
-            gdprApplies: true,
-            cmpLoaded: true,
-            cmpStatus: 'loaded',
-            displayStatus: 'visible',
-            apiVersion: '2.2',
-            cmpVersion: this.cmpVersion,
-            cmpId: this.cmpId,
-            gvlVersion: this.vendorListVersion,
-            tcfPolicyVersion: this.policyVersion
-          }, true);
-          break;
-
-        case 'getTCData':
-          callback(this.getTCData(parameter), true);
-          break;
-
-        case 'getVendorList':
-          callback(this.getVendorList(parameter), true);
-          break;
-
-        case 'addEventListener':
-          this.addEventListener(callback);
-          break;
-
-        case 'removeEventListener':
-          this.removeEventListener(parameter);
-          break;
-
-        default:
-          console.warn(`[TCF] Unknown command: ${command}`);
-          callback(null, false);
-      }
-    };
-
-    // Setup __tcfapi.a queue for early calls
-    window.__tcfapi.a = window.__tcfapi.a || [];
-  }
-
-  /**
-   * Get TC Data
-   * @param {Array<number>} vendorIds - Optional vendor IDs to filter
-   * @returns {Object} TC Data object
-   */
-  getTCData(vendorIds) {
-    return {
-      tcString: this.tcString || '',
-      tcfPolicyVersion: this.policyVersion,
-      cmpId: this.cmpId,
-      cmpVersion: this.cmpVersion,
-      gdprApplies: true,
-      eventStatus: this.tcString ? 'tcloaded' : 'cmpuishown',
-      cmpStatus: 'loaded',
-      listenerId: null,
-      isServiceSpecific: false,
-      useNonStandardTexts: false,
-      publisherCC: 'IT',
-      purposeOneTreatment: false,
-      outOfBand: {
-        allowedVendors: {},
-        disclosedVendors: {}
-      },
-      purpose: {
-        consents: this.purposeConsents,
-        legitimateInterests: {}
-      },
-      vendor: {
-        consents: vendorIds 
-          ? this.filterVendorConsents(vendorIds)
-          : this.vendorConsents,
-        legitimateInterests: {}
-      },
-      specialFeatureOptins: {},
-      publisher: {
-        consents: {},
-        legitimateInterests: {},
-        customPurpose: {
-          consents: {},
-          legitimateInterests: {}
-        },
-        restrictions: {}
-      }
-    };
-  }
-
-  /**
-   * Filter vendor consents by IDs
-   * @param {Array<number>} vendorIds - Vendor IDs
-   * @returns {Object} Filtered consents
-   */
-  filterVendorConsents(vendorIds) {
-    const filtered = {};
-    vendorIds.forEach(id => {
-      if (this.vendorConsents[id] !== undefined) {
-        filtered[id] = this.vendorConsents[id];
-      }
-    });
-    return filtered;
-  }
-
-  /**
-   * Get vendor list
-   * @param {number} _vendorListVersion - Optional version (unused, reserved for future use)
-   * @returns {Object} Vendor list
-   */
-  getVendorList(_vendorListVersion) {
-    return {
-      gvlSpecificationVersion: 2,
-      vendorListVersion: this.vendorListVersion,
-      tcfPolicyVersion: this.policyVersion,
-      lastUpdated: new Date().toISOString(),
-      purposes: this.getPurposesObject(),
-      specialPurposes: this.getSpecialPurposesObject(),
-      features: {},
-      specialFeatures: this.getSpecialFeaturesObject(),
-      vendors: this.getVendorsObject()
-    };
-  }
-
-  /**
-   * Get purposes as object
-   * @returns {Object} Purposes
-   */
-  getPurposesObject() {
-    const purposesObj = {};
-    this.purposes.forEach((purpose, id) => {
-      purposesObj[id] = purpose;
-    });
-    return purposesObj;
-  }
-
-  /**
-   * Get special purposes as object
-   * @returns {Object} Special purposes
-   */
-  getSpecialPurposesObject() {
-    const specialPurposesObj = {};
-    this.specialPurposes.forEach((purpose, id) => {
-      specialPurposesObj[id] = purpose;
-    });
-    return specialPurposesObj;
-  }
-
-  /**
-   * Get special features as object
-   * @returns {Object} Special features
-   */
-  getSpecialFeaturesObject() {
-    const specialFeaturesObj = {};
-    this.specialFeatures.forEach((feature, id) => {
-      specialFeaturesObj[id] = feature;
-    });
-    return specialFeaturesObj;
-  }
-
-  /**
-   * Get vendors as object
-   * @returns {Object} Vendors
-   */
-  getVendorsObject() {
-    const vendorsObj = {};
-    this.vendors.forEach((vendor, id) => {
-      vendorsObj[id] = vendor;
-    });
-    return vendorsObj;
-  }
-
-  /**
-   * Add event listener
-   * @param {Function} callback - Callback function
-   * @returns {void}
-   */
-  addEventListener(callback) {
-    // Store listener and call immediately with current data
-    callback(this.getTCData(), true);
-  }
-
-  /**
-   * Remove event listener
-   * @param {number} listenerId - Listener ID
-   * @returns {void}
-   */
-  removeEventListener(listenerId) {
-    // Implementation for removing event listeners
-    console.log(`[TCF] Remove listener: ${listenerId}`);
-  }
-
-  /**
-   * Load IAB vendor list
-   * @returns {Promise<void>}
-   */
-  async loadVendorList() {
-    try {
-      // Load official IAB Global Vendor List
-      const response = await fetch('https://vendor-list.consensu.org/v2/vendor-list.json');
-      const data = await response.json();
-      
-      this.vendorListVersion = data.vendorListVersion || 0;
-      
-      // Store vendors
-      if (data.vendors) {
-        Object.entries(data.vendors).forEach(([id, vendor]) => {
-          this.vendors.set(parseInt(id), vendor);
-        });
-      }
-
-      console.log(`[TCF] Loaded ${this.vendors.size} vendors from IAB GVL v${this.vendorListVersion}`);
-    } catch (error) {
-      console.error('[TCF] Failed to load vendor list:', error);
-      // Initialize with empty vendor list
-      this.vendors = new Map();
-      this.vendorListVersion = 0;
-    }
-  }
-
-  /**
-   * Load IAB purposes
-   * @returns {void}
-   */
-  loadPurposes() {
-    // Standard IAB TCF v2.2 purposes
-    this.purposes.set(1, {
-      id: 1,
-      name: 'Store and/or access information on a device',
-      description: 'Cookies, device identifiers, or other information can be stored or accessed on your device for the purposes presented to you.',
-      descriptionLegal: 'Vendors can: Store and access information on the device such as cookies and device identifiers presented to a user.'
-    });
-    
-    this.purposes.set(2, {
-      id: 2,
-      name: 'Select basic ads',
-      description: 'Ads can be shown to you based on the content you\'re viewing, the app you\'re using, your approximate location, or your device type.',
-      descriptionLegal: 'To do basic ad selection vendors can: Use real-time information about the context in which the ad will be shown.'
-    });
-    
-    this.purposes.set(3, {
-      id: 3,
-      name: 'Create a personalized ads profile',
-      description: 'A profile can be built about you and your interests to show you personalized ads that are relevant to you.',
-      descriptionLegal: 'To create a personalized ads profile vendors can: Collect information about a user, including a user\'s activity, interests, demographic information, or location.'
-    });
-    
-    this.purposes.set(4, {
-      id: 4,
-      name: 'Select personalized ads',
-      description: 'Personalized ads can be shown to you based on a profile about you.',
-      descriptionLegal: 'To select personalized ads vendors can: Select personalized ads based on a profile or other historical user data.'
-    });
-    
-    this.purposes.set(5, {
-      id: 5,
-      name: 'Create a personalized content profile',
-      description: 'A profile can be built about you and your interests to show you personalized content that is relevant to you.',
-      descriptionLegal: 'To create a personalized content profile vendors can: Collect information about a user, including a user\'s activity, interests, demographic information, or location.'
-    });
-    
-    this.purposes.set(6, {
-      id: 6,
-      name: 'Select personalized content',
-      description: 'Personalized content can be shown to you based on a profile about you.',
-      descriptionLegal: 'To select personalized content vendors can: Select personalized content based on a profile or other historical user data.'
-    });
-    
-    this.purposes.set(7, {
-      id: 7,
-      name: 'Measure ad performance',
-      description: 'The performance and effectiveness of ads that you see or interact with can be measured.',
-      descriptionLegal: 'To measure ad performance vendors can: Measure whether and how ads were delivered to and interacted with by a user.'
-    });
-    
-    this.purposes.set(8, {
-      id: 8,
-      name: 'Measure content performance',
-      description: 'The performance and effectiveness of content that you see or interact with can be measured.',
-      descriptionLegal: 'To measure content performance vendors can: Measure whether and how content was delivered to and interacted with by a user.'
-    });
-    
-    this.purposes.set(9, {
-      id: 9,
-      name: 'Apply market research to generate audience insights',
-      description: 'Market research can be used to learn more about the audiences who visit sites/apps and view ads.',
-      descriptionLegal: 'To apply market research to generate audience insights vendors can: Provide aggregate reporting to advertisers or their representatives about the audiences reached by their ads.'
-    });
-    
-    this.purposes.set(10, {
-      id: 10,
-      name: 'Develop and improve products',
-      description: 'Your data can be used to improve existing systems and software, and to develop new products.',
-      descriptionLegal: 'To develop new products and improve products vendors can: Use information to improve their existing products with new features and to develop new products.'
-    });
-
-    // Special features
-    this.specialFeatures.set(1, {
-      id: 1,
-      name: 'Use precise geolocation data',
-      description: 'Your precise geolocation data can be used in support of one or more purposes.'
-    });
-    
-    this.specialFeatures.set(2, {
-      id: 2,
-      name: 'Actively scan device characteristics for identification',
-      description: 'Your device can be identified based on a scan of your device\'s unique combination of characteristics.'
-    });
-
-    console.log(`[TCF] Loaded ${this.purposes.size} purposes and ${this.specialFeatures.size} special features`);
-  }
-
-  /**
-   * Update consent from categories
-   * @param {ConsentCategories} categories - Consent categories
-   * @returns {void}
-   */
-  updateConsent(categories) {
-    // Map CMP categories to TCF purposes
-    this.purposeConsents = {
-      1: categories.necessary,  // Store and access information
-      2: categories.marketing,  // Basic ads
-      3: categories.marketing,  // Personalized ads profile
-      4: categories.marketing,  // Select personalized ads
-      5: categories.preferences, // Personalized content profile
-      6: categories.preferences, // Select personalized content
-      7: categories.analytics,  // Measure ad performance
-      8: categories.analytics,  // Measure content performance
-      9: categories.analytics,  // Market research
-      10: categories.analytics  // Develop and improve products
-    };
-
-    // Set all vendors to the same consent status
-    // In a production system, this should be more granular
-    const hasMarketingConsent = categories.marketing;
-    this.vendors.forEach((vendor, id) => {
-      this.vendorConsents[id] = hasMarketingConsent;
-    });
-
-    // Generate TC String
-    this.tcString = this.generateTCString();
-    
-    // Update __tcfapi listeners
-    this.notifyListeners();
-    
-    console.log('[TCF] Consent updated, TC String:', this.tcString);
-  }
-
-  /**
-   * Generate TC String (simplified implementation)
-   * @returns {string} TC String
-   */
-  generateTCString() {
-    // This is a simplified TC String generation
-    // Production implementation should follow IAB TCF specification exactly
-    // TC String format: CPXxxx... (base64url encoded binary consent data)
-    
-    const version = 2;
-    const created = Math.floor(Date.now() / 100); // deciseconds
-    // Note: updated and consentScreen would be used in full TC String encoding
-    const _updated = created; // Reserved for future use
-    const cmpId = this.cmpId;
-    const cmpVersion = this.cmpVersion;
-    const _consentScreen = this.consentScreen; // Reserved for future use
-    const consentLanguage = this.consentLanguage;
-    const vendorListVersion = this.vendorListVersion;
-    
-    // Create a simplified identifier (not a real TC String)
-    // In production, use a proper TC String encoder library
-    const tcString = `CP${version}${cmpId}${cmpVersion}_${consentLanguage}${vendorListVersion}`;
-    
-    return btoa(tcString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  }
-
-  /**
-   * Notify listeners of consent changes
-   * @returns {void}
-   */
-  notifyListeners() {
-    // Dispatch event for any listeners
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('tcfapi-update', {
-        detail: this.getTCData()
-      }));
-    }
-  }
-
-  /**
-   * Get current TC String
-   * @returns {string | null} TC String
-   */
-  getTCString() {
-    return this.tcString;
-  }
-}
-
-// ============================================================================
 // COOKIE SCANNER
 // ============================================================================
 
@@ -2191,8 +1746,6 @@ class RSCMP {
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
     /** @type {ServiceLoader} */
     this.serviceLoader = new ServiceLoader(this.consentManager);
-    /** @type {TCFManager} */
-    this.tcfManager = new TCFManager();
     /** @type {CookieScanner} */
     this.cookieScanner = new CookieScanner();
     /** @type {Config | null} */
@@ -2212,9 +1765,6 @@ class RSCMP {
    */
   async init(inlineConfig = null) {
     try {
-      // Initialize TCF 2.2
-      this.tcfManager.init();
-      
       // Start cookie scanner monitoring
       this.cookieScanner.startMonitoring((cookie) => {
         this.handleNewCookie(cookie);
@@ -2238,8 +1788,8 @@ class RSCMP {
       const existingConsent = this.consentStorage.getConsent();
       
       if (existingConsent) {
-        // Apply existing consent
-        this.applyConsent(existingConsent.categories);
+        // Apply existing consent without reload (initial page load)
+        this.applyConsent(existingConsent.categories, false);
         // Show reopen button
         this.showReopenButton();
       } else {
@@ -2252,7 +1802,8 @@ class RSCMP {
 
       // Listen for consent updates
       this.consentManager.on('consentUpdated', (categories) => {
-        this.applyConsent(categories);
+        // Apply consent with reload (user changed consent)
+        this.applyConsent(categories, true);
       });
 
       // Listen for banner close to show reopen button
@@ -2313,17 +1864,15 @@ class RSCMP {
    * Apply consent to scripts and services
    * @private
    * @param {ConsentCategories} categories - Consent categories
+   * @param {boolean} shouldReload - Whether to reload the page after applying consent
    * @returns {void}
    */
-  applyConsent(categories) {
+  applyConsent(categories, shouldReload = false) {
     // Unblock scripts based on consent
     this.scriptBlocker.unblockScripts(categories);
     
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
-    
-    // Update TCF 2.2 consent
-    this.tcfManager.updateConsent(categories);
     
     // Load services based on consent
     this.serviceLoader.loadAllServices(categories);
@@ -2331,6 +1880,14 @@ class RSCMP {
     // Send consent to backend
     if (this.siteId && this.config) {
       this.sendConsentToBackend(categories);
+    }
+
+    // Reload page to properly apply script blocking/unblocking
+    if (shouldReload) {
+      // Small delay to ensure consent is saved
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
   }
 
@@ -2362,6 +1919,14 @@ class RSCMP {
     this.consentStorage.clearConsent();
     this.scriptBlocker.blockScripts();
     this.showPreferences();
+  }
+
+  /**
+   * Get current consent status (public method)
+   * @returns {ConsentCategories | null} Current consent or null if not set
+   */
+  getConsent() {
+    return this.consentManager.getConsent();
   }
 
   /**
@@ -2680,7 +2245,12 @@ let cmpInstance = null;
 if (typeof window !== 'undefined') {
   cmpInstance = new RSCMP();
   
+  // Early script blocking - run immediately to block scripts before they execute
+  // This is crucial for proper cookie blocking
   if (document.readyState === 'loading') {
+    // Block scripts immediately
+    cmpInstance.scriptBlocker.blockScripts();
+    
     document.addEventListener('DOMContentLoaded', () => cmpInstance.init().catch(err => {
       console.error('[RS-CMP] Auto-initialization failed:', err);
     }));

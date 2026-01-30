@@ -1,6 +1,6 @@
 # RS-CMP - Consent Management Platform
 
-A GDPR-compliant Consent Management Platform (CMP) that respects GDPR, ePrivacy, and TCF 2.2 standards.
+A GDPR-compliant Consent Management Platform (CMP) that respects GDPR and ePrivacy standards.
 
 ## Features
 
@@ -19,33 +19,60 @@ A GDPR-compliant Consent Management Platform (CMP) that respects GDPR, ePrivacy,
 
 #### Quick Start
 
+**IMPORTANT: The CMP script must be loaded FIRST in your `<head>` section, before any tracking scripts!**
+
 Add this script to your website's `<head>` section:
 
 ```html
-<script src="https://cdn.rs-cmp.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+<head>
+  <!-- RS-CMP must be loaded FIRST -->
+  <script src="https://cdn.rs-cmp.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+  
+  <!-- Your other scripts come after -->
+  <script src="your-other-scripts.js"></script>
+</head>
 ```
 
 That's it! The CMP will automatically:
-1. Load your site configuration
-2. Block tracking scripts
+1. Block tracking scripts immediately
+2. Load your site configuration
 3. Show the consent banner
 4. Apply user consent choices
+5. Reload the page when consent changes to properly apply blocking
 
 #### Manual Script Blocking
 
-For precise control, mark scripts with `data-category`:
+For precise control, mark scripts with `data-category` and `type="text/plain"`:
 
 ```html
-<!-- Analytics script -->
+<!-- Analytics script (Google Analytics) -->
 <script type="text/plain" data-category="analytics">
   // Google Analytics code
+  (function(i,s,o,g,r,a,m){...})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
 </script>
 
-<!-- Marketing script -->
+<!-- Marketing script (Facebook Pixel) -->
 <script type="text/plain" data-category="marketing">
   // Facebook Pixel code
+  !function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+</script>
+
+<!-- Preferences script -->
+<script type="text/plain" data-category="preferences">
+  // Your preferences code
+</script>
+
+<!-- Necessary scripts don't need type="text/plain" -->
+<script data-category="necessary">
+  // This will always run
 </script>
 ```
+
+**How it works:**
+1. Scripts with `type="text/plain"` won't execute automatically
+2. When user gives consent, the CMP reloads the page
+3. On reload, consented scripts are unblocked and execute normally
+4. Non-consented scripts remain blocked as `type="text/plain"`
 
 ### 🏗️ Architecture
 
@@ -249,7 +276,6 @@ More languages can be added in the site configuration.
 - ✅ GDPR compliant
 - ✅ ePrivacy Directive compliant
 - ✅ Google Consent Mode v2 ready
-- ✅ TCF 2.2 foundation (v2 feature)
 
 ### 🎯 Performance
 
@@ -260,7 +286,6 @@ More languages can be added in the site configuration.
 
 ### 🔮 Roadmap (v2)
 
-- [ ] IAB TCF 2.2 full compliance
 - [ ] A/B testing for banner variations
 - [ ] Geo-targeting (EU-only mode)
 - [ ] Server-side consent API

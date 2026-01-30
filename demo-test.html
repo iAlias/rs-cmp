@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test RS-CMP - Cookie Blocking</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #1a202c;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            color: #2d3748;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .demo-buttons {
+            margin: 30px 0;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .demo-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #3182ce;
+            color: white;
+        }
+        
+        .demo-btn:hover {
+            background: #2c5aa0;
+            transform: translateY(-2px);
+        }
+
+        .info-box {
+            background: #f7fafc;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .status.blocked {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status.allowed {
+            background: #c6f6d5;
+            color: #276749;
+        }
+
+        #output {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .cookie-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .cookie-list li {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Test RS-CMP - Cookie Blocking</h1>
+        <p>Questa pagina testa il blocco effettivo dei cookie e script di tracking.</p>
+        
+        <div class="demo-buttons">
+            <button class="demo-btn" onclick="window.RSCMP.resetConsent()">
+                Reset Consenso
+            </button>
+            <button class="demo-btn" onclick="checkConsent()">
+                Verifica Consenso
+            </button>
+            <button class="demo-btn" onclick="checkCookies()">
+                Controlla Cookie
+            </button>
+            <button class="demo-btn" onclick="checkScripts()">
+                Controlla Script
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h2>📊 Stato Consenso Attuale</h2>
+            <div id="consent-status">Caricamento...</div>
+        </div>
+
+        <div class="info-box">
+            <h2>🍪 Cookie Rilevati</h2>
+            <ul id="cookie-list" class="cookie-list">
+                <li>Nessun cookie ancora</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h2>📜 Script sulla Pagina</h2>
+            <div id="script-status">Caricamento...</div>
+        </div>
+
+        <div id="output"></div>
+    </div>
+    
+    <!-- Load CMP first - MUST be loaded before any tracking scripts -->
+    <script>
+        // Override navigator language to Italian BEFORE loading CMP
+        Object.defineProperty(navigator, 'language', {
+            get: function() { return 'it-IT'; },
+            configurable: true
+        });
+        Object.defineProperty(navigator, 'languages', {
+            get: function() { return ['it-IT', 'it']; },
+            configurable: true
+        });
+    </script>
+    <script src="dist/cmp-js.js"></script>
+    
+    <!-- Simulated Analytics Script (Google Analytics) -->
+    <script type="text/plain" data-category="analytics">
+        console.log('✅ Analytics script executed! (Google Analytics)');
+        // This would be your actual GA code
+        document.cookie = 'test_ga_cookie=analytics_active; path=/';
+    </script>
+
+    <!-- Simulated Marketing Script (Facebook Pixel) -->
+    <script type="text/plain" data-category="marketing">
+        console.log('✅ Marketing script executed! (Facebook Pixel)');
+        // This would be your actual Facebook Pixel code
+        document.cookie = 'test_fb_cookie=marketing_active; path=/';
+    </script>
+
+    <!-- Simulated Preferences Script -->
+    <script type="text/plain" data-category="preferences">
+        console.log('✅ Preferences script executed!');
+        document.cookie = 'test_pref_cookie=preferences_active; path=/';
+    </script>
+
+    <!-- Necessary script - should always execute -->
+    <script data-category="necessary">
+        console.log('✅ Necessary script executed! (always runs)');
+    </script>
+    
+    <script>
+        function checkConsent() {
+            const output = document.getElementById('output');
+            const consent = window.RSCMP.getConsent();
+            if (consent) {
+                output.textContent = 'Stato Consenso:\n' + JSON.stringify({
+                    necessary: consent.necessary,
+                    analytics: consent.analytics,
+                    marketing: consent.marketing,
+                    preferences: consent.preferences
+                }, null, 2);
+            } else {
+                output.textContent = 'Nessun consenso ancora dato';
+            }
+            updateConsentStatus();
+        }
+
+        function checkCookies() {
+            const cookies = document.cookie.split(';').map(c => c.trim()).filter(c => c);
+            const cookieList = document.getElementById('cookie-list');
+            
+            if (cookies.length === 0) {
+                cookieList.innerHTML = '<li>Nessun cookie trovato</li>';
+            } else {
+                cookieList.innerHTML = cookies.map(cookie => {
+                    const [name, value] = cookie.split('=');
+                    return `<li>
+                        <span>${name}</span>
+                        <span style="font-size: 11px; color: #666;">${value.substring(0, 30)}...</span>
+                    </li>`;
+                }).join('');
+            }
+        }
+
+        function checkScripts() {
+            const scripts = document.querySelectorAll('script[data-category]');
+            const output = document.getElementById('script-status');
+            
+            let html = '<ul class="cookie-list">';
+            scripts.forEach(script => {
+                const category = script.getAttribute('data-category');
+                const type = script.getAttribute('type');
+                const isBlocked = type === 'text/plain';
+                
+                html += `<li>
+                    <span><strong>${category}</strong></span>
+                    <span class="status ${isBlocked ? 'blocked' : 'allowed'}">
+                        ${isBlocked ? '🔒 BLOCCATO' : '✅ ATTIVO'}
+                    </span>
+                </li>`;
+            });
+            html += '</ul>';
+            
+            output.innerHTML = html;
+        }
+
+        function updateConsentStatus() {
+            const consent = window.RSCMP.getConsent();
+            const statusDiv = document.getElementById('consent-status');
+            
+            if (!consent) {
+                statusDiv.innerHTML = '<p style="color: #c53030;">⚠️ Nessun consenso dato</p>';
+                return;
+            }
+
+            statusDiv.innerHTML = `
+                <ul class="cookie-list">
+                    <li>
+                        <span>Necessary (Necessari)</span>
+                        <span class="status allowed">✅ ATTIVO</span>
+                    </li>
+                    <li>
+                        <span>Analytics (Analitici)</span>
+                        <span class="status ${consent.analytics ? 'allowed' : 'blocked'}">
+                            ${consent.analytics ? '✅ ATTIVO' : '🔒 BLOCCATO'}
+                        </span>
+                    </li>
+                    <li>
+                        <span>Marketing</span>
+                        <span class="status ${consent.marketing ? 'allowed' : 'blocked'}">
+                            ${consent.marketing ? '✅ ATTIVO' : '🔒 BLOCCATO'}
+                        </span>
+                    </li>
+                    <li>
+                        <span>Preferences (Preferenze)</span>
+                        <span class="status ${consent.preferences ? 'allowed' : 'blocked'}">
+                            ${consent.preferences ? '✅ ATTIVO' : '🔒 BLOCCATO'}
+                        </span>
+                    </li>
+                </ul>
+            `;
+        }
+
+        // Auto-update on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                updateConsentStatus();
+                checkCookies();
+                checkScripts();
+            }, 500);
+        });
+
+        // Check status every 2 seconds
+        setInterval(() => {
+            updateConsentStatus();
+            checkCookies();
+            checkScripts();
+        }, 2000);
+    </script>
+</body>
+</html>
