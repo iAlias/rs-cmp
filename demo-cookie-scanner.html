@@ -236,6 +236,9 @@
     <script src="dist/cmp-js.js"></script>
     
     <script>
+        // Track if RSCMP is initialized to avoid unnecessary retries
+        let rscmpInitialized = false;
+        
         // Add some test cookies to demonstrate categorization
         function addTestCookies() {
             // Analytics cookies
@@ -299,6 +302,12 @@
                 console.log('Waiting for RSCMP methods to be available...');
                 setTimeout(() => refreshCookieList(retryCount + 1), 500);
                 return;
+            }
+            
+            // Mark as initialized on first successful check
+            if (!rscmpInitialized) {
+                rscmpInitialized = true;
+                console.log('RSCMP initialized successfully');
             }
             
             const cookies = window.RSCMP.getDetectedCookies();
@@ -409,9 +418,12 @@
                 refreshCookieList();
             }, 1000);
             
-            // Auto-refresh every 5 seconds
+            // Auto-refresh every 5 seconds (only if RSCMP is initialized)
             setInterval(() => {
-                refreshCookieList();
+                // Skip retries if RSCMP is already initialized
+                if (rscmpInitialized) {
+                    refreshCookieList();
+                }
             }, 5000);
         });
     </script>
