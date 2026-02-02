@@ -1956,21 +1956,21 @@ class CookieScanner {
   deleteCookiesByCategory(categories) {
     // Perform a fresh scan to get the latest cookies
     const currentCookies = this.scanCookies();
-    let deletedCount = 0;
+    let processedCount = 0;
     
     for (const cookie of currentCookies) {
       if (categories.includes(cookie.category)) {
         // Try to delete with various domain and path combinations
         this.deleteCookie(cookie.name);
-        deletedCount++;
+        processedCount++;
         
         // Remove from detected cookies
         this.detectedCookies.delete(cookie.name);
       }
     }
     
-    if (deletedCount > 0) {
-      console.log(`[CookieScanner] Deleted ${deletedCount} cookies from categories: ${categories.join(', ')}`);
+    if (processedCount > 0) {
+      console.log(`[CookieScanner] Attempted to delete ${processedCount} cookies from categories: ${categories.join(', ')}`);
     }
   }
   
