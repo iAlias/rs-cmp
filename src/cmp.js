@@ -1869,7 +1869,6 @@ class RSCMP {
         // Try to load from API, fall back to default if unavailable
         try {
           this.config = await this.loadConfig(this.siteId);
-          console.log('[RS-CMP] Configuration loaded from API');
         } catch (apiError) {
           console.warn('[RS-CMP] Failed to load config from API, using default configuration:', apiError.message);
           this.config = this.getDefaultConfig();
@@ -1933,7 +1932,6 @@ class RSCMP {
   async loadConfig(siteId) {
     const apiUrl = this.getApiUrl();
     const configUrl = `${apiUrl}/v1/site/${siteId}/config`;
-    
     const response = await fetch(configUrl);
     
     if (!response.ok) {
@@ -2372,12 +2370,8 @@ if (typeof window !== 'undefined') {
 }
 
 // Export for both IIFE (esbuild) and other module systems
+// In browser context, window.RSCMP is already set above
+// This export is for Node.js/CommonJS and esbuild's IIFE wrapper
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
   module.exports = cmpInstance;
-} else {
-  // For IIFE, this will be the return value
-  if (typeof window === 'undefined') {
-    // Node.js or other non-browser environment
-    globalThis.RSCMP = cmpInstance;
-  }
 }
