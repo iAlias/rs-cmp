@@ -1954,10 +1954,11 @@ class CookieScanner {
    * @returns {void}
    */
   deleteCookiesByCategory(categories) {
-    const allCookies = this.getAllCookies();
+    // Perform a fresh scan to get the latest cookies
+    const currentCookies = this.scanCookies();
     let deletedCount = 0;
     
-    for (const cookie of allCookies) {
+    for (const cookie of currentCookies) {
       if (categories.includes(cookie.category)) {
         // Try to delete with various domain and path combinations
         this.deleteCookie(cookie.name);
