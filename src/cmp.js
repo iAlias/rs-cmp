@@ -1190,15 +1190,13 @@ class BannerUI {
                     <p>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].description : cat.description)}</p>
                   </div>
                 </label>
-                ${cat.id !== 'necessary' ? `
-                  <button 
-                    class="rs-cmp-toggle-details" 
-                    onclick="this.parentElement.nextElementSibling.classList.toggle('rs-cmp-hidden')"
-                    aria-label="Show details"
-                  >
-                    ▼
-                  </button>
-                ` : ''}
+                <button 
+                  class="rs-cmp-toggle-details" 
+                  onclick="this.parentElement.nextElementSibling.classList.toggle('rs-cmp-hidden')"
+                  aria-label="Show details"
+                >
+                  ▼
+                </button>
               </div>
               ${this.getServicesForCategory(cat.id)}
             </div>
@@ -1542,12 +1540,17 @@ class BannerUI {
       { pattern: /^_gcl_au$/, provider: 'Google Tag Manager' },
       { pattern: /^_gcl/, provider: 'Google Ads' },
       { pattern: /^_dc_gtm_/, provider: 'Google Tag Manager' },
-      { pattern: /^(_fbp|_fbc|_fr|^fr)$/, provider: 'Meta (Facebook)' },
+      { pattern: /^(AEC|ADS_VISITOR_ID|ps_l)$/, provider: 'Google Ads' },
+      { pattern: /^(APISID|SAPISID|HSID|SID|SSID|SIDCC|__Secure-3PAPISID|__Secure-3PSID|__Secure-3PSIDTS|__Secure-BUCKET|Secure-ENID|SEARCH_SAMESITE)$/, provider: 'Google' },
+      { pattern: /^NID$/, provider: 'Google' },
+      { pattern: /^S$/, provider: 'Generic Marketing' },
+      { pattern: /^(_fbp|_fbc|_fr|^fr|^wd)$/, provider: 'Meta (Facebook)' },
       { pattern: /^_hj/, provider: 'Hotjar' },
       { pattern: /^(_clck|_clsk|CLID|SM)$/, provider: 'Microsoft Clarity' },
+      { pattern: /^(ai_session|ai_user)$/, provider: 'Azure Application Insights' },
       { pattern: /^(MUID|ANONCHK|SRM_B)$/, provider: 'Microsoft' },
       { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
-      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID)/, provider: 'ASP.NET' },
+      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID|ASP\.NET_Sessionld)/, provider: 'ASP.NET' },
       { pattern: /^(\.ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
       { pattern: /^(cityidc_|CNC_PSIC)/, provider: 'Store Selection' },
       { pattern: /(session|SESS)/i, provider: 'Session Management' },
@@ -1680,8 +1683,10 @@ class CookieScanner {
       '_hjSessionUser_': 'analytics', // Hotjar
       '_clck': 'analytics', // Microsoft Clarity
       '_clsk': 'analytics',
-      'CLID': 'analytics',
+      'CLID': 'analytics', // Microsoft Clarity
       'SM': 'analytics', // Microsoft - indicates MUID update
+      'ai_session': 'analytics', // Azure Application Insights
+      'ai_user': 'analytics', // Azure Application Insights
       
       // Marketing/Advertising cookies
       '_fbp': 'marketing',
@@ -1694,9 +1699,23 @@ class CookieScanner {
       'IDE': 'marketing', // Google DoubleClick
       'DSID': 'marketing',
       'test_cookie': 'marketing',
-      '__Secure-3PAPISID': 'marketing',
-      '__Secure-3PSID': 'marketing',
-      'NID': 'marketing',
+      '__Secure-3PAPISID': 'marketing', // Google
+      '__Secure-3PSID': 'marketing', // Google
+      '__Secure-3PSIDTS': 'marketing', // Google
+      '__Secure-BUCKET': 'marketing', // Google
+      'Secure-ENID': 'marketing', // Google
+      'NID': 'marketing', // Google
+      'AEC': 'marketing', // Google Ads
+      'APISID': 'marketing', // Google
+      'SAPISID': 'marketing', // Google
+      'HSID': 'marketing', // Google
+      'SID': 'marketing', // Google
+      'SSID': 'marketing', // Google
+      'SIDCC': 'marketing', // Google
+      'SEARCH_SAMESITE': 'marketing', // Google
+      'ADS_VISITOR_ID': 'marketing', // Google Ads visitor ID
+      'ps_l': 'marketing', // Google related
+      'S': 'marketing', // Generic marketing cookie
       '_ttp': 'marketing', // TikTok
       '_ttp_pixel': 'marketing',
       '__ttd': 'marketing',
@@ -1704,6 +1723,7 @@ class CookieScanner {
       'VISITOR_INFO1_LIVE': 'marketing',
       'MUID': 'marketing', // Microsoft advertising
       'ANONCHK': 'marketing', // Microsoft advertising check
+      'wd': 'marketing', // Facebook - window dimensions tracking
       
       // Preference cookies
       'lang': 'preferences',
@@ -1718,6 +1738,7 @@ class CookieScanner {
       'PHPSESSID': 'necessary',
       'JSESSIONID': 'necessary',
       'ASPSESSIONID': 'necessary',
+      'ASP.NET_Sessionld': 'necessary', // ASP.NET session (note: typo in original but keeping as-is)
       '.ASPXANONYMOUS': 'necessary', // ASP.NET anonymous
       'ASP.NET_ID': 'necessary', // ASP.NET session
       '.ARRAffinity': 'necessary', // Azure affinity
