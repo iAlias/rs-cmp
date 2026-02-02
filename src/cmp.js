@@ -100,15 +100,16 @@ class ConsentStorage {
   saveConsent(consent) {
     const consentString = JSON.stringify(consent);
 
-    // Save to localStorage
+    // Save full state to localStorage
     try {
       localStorage.setItem(STORAGE_KEY, consentString);
     } catch (error) {
       console.warn('[RS-CMP] Failed to save to localStorage:', error);
     }
 
-    // Save to cookie (first-party)
-    this.setCookie(COOKIE_NAME, consentString, COOKIE_MAX_AGE);
+    // Save minimal cookie (just "1" to indicate consent exists)
+    // Full state is stored only in localStorage
+    this.setCookie(COOKIE_NAME, '1', COOKIE_MAX_AGE);
   }
 
   /**
@@ -116,7 +117,7 @@ class ConsentStorage {
    * @returns {ConsentData | null} Stored consent data or null
    */
   getConsent() {
-    // Try localStorage first
+    // Try localStorage first (has full state)
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -126,14 +127,11 @@ class ConsentStorage {
       console.warn('[RS-CMP] Failed to read from localStorage:', error);
     }
 
-    // Fallback to cookie
+    // Cookie only indicates consent exists (minimal: "1")
+    // If localStorage is not available, we can't get the full consent state
     const cookieValue = this.getCookie(COOKIE_NAME);
-    if (cookieValue) {
-      try {
-        return JSON.parse(cookieValue);
-      } catch (error) {
-        console.warn('[RS-CMP] Failed to parse cookie:', error);
-      }
+    if (cookieValue === '1') {
+      console.warn('[RS-CMP] Cookie found but localStorage unavailable - cannot retrieve full consent state');
     }
 
     return null;
@@ -436,11 +434,20 @@ class ScriptBlocker {
         
         // Create a new script element (required for execution)
         const newScript = document.createElement('script');
-        newScript.type = originalType;
         
-        // Copy attributes
+        // Copy all attributes, preserving critical security and module attributes
         Array.from(script.attributes).forEach((attr) => {
-          if (attr.name !== 'type' && attr.name !== 'data-original-type') {
+          if (attr.name === 'type') {
+            // Use original type instead of blocked type
+            newScript.setAttribute('type', originalType);
+          } else if (attr.name === 'data-original-type') {
+            // Skip internal attribute
+          } else {
+            // Copy all other attributes including:
+            // - nomodule
+            // - nonce (CSP)
+            // - integrity (SRI)
+            // - crossorigin (CORS)
             newScript.setAttribute(attr.name, attr.value);
           }
         });
@@ -687,6 +694,8 @@ class ServiceLoader {
   constructor(consentManager) {
     /** @type {ConsentManager} */
     this.consentManager = consentManager;
+    /** @type {Set<string>} */
+    this.loadedServices = new Set(); // Track loaded services to prevent double initialization
     /** @type {Object} */
     this.services = {
       'meta-pixel': {
@@ -769,6 +778,12 @@ class ServiceLoader {
    * @returns {void}
    */
   loadService(serviceId) {
+    // Protection against double initialization
+    if (this.loadedServices.has(serviceId)) {
+      console.log(`[RS-CMP] Service ${serviceId} already loaded, skipping`);
+      return;
+    }
+    
     const service = this.services[serviceId];
     if (!service) return;
     
@@ -776,6 +791,7 @@ class ServiceLoader {
     if (hasConsent && service.loader) {
       try {
         service.loader(service.id || service);
+        this.loadedServices.add(serviceId); // Mark as loaded
         console.log(`[RS-CMP] Service loaded: ${serviceId}`);
       } catch (error) {
         console.error(`[RS-CMP] Failed to load service ${serviceId}:`, error);
@@ -1525,10 +1541,8 @@ class CookieScanner {
   constructor() {
     /** @type {Map<string, DetectedCookie>} */
     this.detectedCookies = new Map();
-    /** @type {number | null} */
-    this.scanIntervalId = null;
-    /** @type {number} */
-    this.scanInterval = 2000; // Scan every 2 seconds
+    /** @type {boolean} */
+    this.debugMode = false; // Only scan in debug mode
     /** @type {Object.<string, string>} */
     this.cookiePatterns = this.initializeCookiePatterns();
     /** @type {string | null} */
@@ -1687,32 +1701,17 @@ class CookieScanner {
   }
 
   /**
-   * Start continuous cookie monitoring
-   * @param {Function} [onNewCookie] - Callback when new cookie is detected
+   * Scan cookies on demand (only in debug mode after consent change)
+   * Performance optimization: Cookie scanning is expensive and only needed during development/debugging.
+   * In production, this should remain disabled to avoid unnecessary overhead.
    * @returns {void}
    */
-  startMonitoring(onNewCookie) {
-    if (this.scanIntervalId) {
-      return; // Already monitoring
+  scanOnConsentChange() {
+    if (!this.debugMode) {
+      return; // Only scan in debug mode
     }
     
-    console.log('[CookieScanner] Starting continuous monitoring...');
-    
-    // Initial scan
-    this.performScan(onNewCookie);
-    
-    // Set up periodic scanning
-    this.scanIntervalId = setInterval(() => {
-      this.performScan(onNewCookie);
-    }, this.scanInterval);
-  }
-
-  /**
-   * Perform a single scan
-   * @param {Function} [onNewCookie] - Callback when new cookie is detected
-   * @returns {void}
-   */
-  performScan(onNewCookie) {
+    console.log('[CookieScanner] Scanning cookies after consent change (debug mode)...');
     const currentCookies = this.scanCookies();
     
     for (const cookie of currentCookies) {
@@ -1722,10 +1721,6 @@ class CookieScanner {
         // New cookie detected
         this.detectedCookies.set(cookie.name, cookie);
         console.log(`[CookieScanner] New cookie detected: ${cookie.name} (${cookie.category})`);
-        
-        if (onNewCookie && typeof onNewCookie === 'function') {
-          onNewCookie(cookie);
-        }
       } else if (existingCookie.value !== cookie.value) {
         // Cookie value changed
         this.detectedCookies.set(cookie.name, cookie);
@@ -1735,15 +1730,13 @@ class CookieScanner {
   }
 
   /**
-   * Stop cookie monitoring
+   * Enable or disable debug mode for cookie scanning
+   * @param {boolean} enabled - Whether debug mode is enabled
    * @returns {void}
    */
-  stopMonitoring() {
-    if (this.scanIntervalId) {
-      clearInterval(this.scanIntervalId);
-      this.scanIntervalId = null;
-      console.log('[CookieScanner] Monitoring stopped');
-    }
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    console.log(`[CookieScanner] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -1866,11 +1859,6 @@ class RSCMP {
    */
   async init(inlineConfig = null) {
     try {
-      // Start cookie scanner monitoring
-      this.cookieScanner.startMonitoring((cookie) => {
-        this.handleNewCookie(cookie);
-      });
-      
       // Get site-id from script tag
       this.siteId = this.getSiteIdFromScript();
       
@@ -1978,6 +1966,9 @@ class RSCMP {
     // Load services based on consent
     this.serviceLoader.loadAllServices(categories);
     
+    // Scan cookies after consent change (only in debug mode)
+    this.cookieScanner.scanOnConsentChange();
+    
     // Send consent to backend
     if (this.siteId && this.config) {
       this.sendConsentToBackend(categories);
@@ -2055,6 +2046,17 @@ class RSCMP {
     if (this.debugMode) {
       console.log('[RS-CMP]', ...args);
     }
+  }
+
+  /**
+   * Enable or disable debug mode
+   * @param {boolean} enabled - Whether debug mode is enabled
+   * @returns {void}
+   */
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    this.cookieScanner.setDebugMode(enabled);
+    console.log(`[RS-CMP] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -2336,43 +2338,27 @@ class RSCMP {
 }
 
 // ============================================================================
-// AUTO-INITIALIZATION
+// INITIALIZATION
 // ============================================================================
 
-// Auto-initialize on page load
-let cmpInstance = null;
-
+// Create instance and expose to window
+// Initialization must be done explicitly by calling window.RSCMP.init()
 if (typeof window !== 'undefined') {
-  cmpInstance = new RSCMP();
+  const cmpInstance = new RSCMP();
   
   // Early script blocking - run immediately to block scripts before they execute
   // This is crucial for proper cookie blocking
   if (document.readyState === 'loading') {
     // Block scripts immediately
     cmpInstance.scriptBlocker.blockScripts();
-    
-    document.addEventListener('DOMContentLoaded', () => {
-      // Check if auto-initialization is disabled
-      if (window.RSCMP_AUTO_INIT === false) {
-        console.log('[RS-CMP] Auto-initialization disabled by RSCMP_AUTO_INIT flag');
-        return;
-      }
-      
-      cmpInstance.init().catch(err => {
-        console.error('[RS-CMP] Auto-initialization failed:', err);
-      });
-    });
   } else {
-    // Check if auto-initialization is disabled
-    if (window.RSCMP_AUTO_INIT === false) {
-      console.log('[RS-CMP] Auto-initialization disabled by RSCMP_AUTO_INIT flag');
-    } else {
-      cmpInstance.init().catch(err => {
-        console.error('[RS-CMP] Auto-initialization failed:', err);
-      });
-    }
+    // Block scripts if document already loaded
+    cmpInstance.scriptBlocker.blockScripts();
   }
-
+  
   // Expose to window for manual control
+  // Users MUST call window.RSCMP.init() explicitly
   window.RSCMP = cmpInstance;
+  
+  console.log('[RS-CMP] Ready. Call window.RSCMP.init() to initialize.');
 }
