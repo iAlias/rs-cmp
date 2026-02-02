@@ -1539,10 +1539,17 @@ class BannerUI {
     // Provider detection patterns
     const providerPatterns = [
       { pattern: /^_g(a|id|at|ac)/, provider: 'Google Analytics' },
+      { pattern: /^_gcl_au$/, provider: 'Google Tag Manager' },
       { pattern: /^_gcl/, provider: 'Google Ads' },
-      { pattern: /^(_fbp|_fbc|fr)$/, provider: 'Meta (Facebook)' },
-      { pattern: /^(_clck|_clsk|CLID)/, provider: 'Microsoft Clarity' },
+      { pattern: /^_dc_gtm_/, provider: 'Google Tag Manager' },
+      { pattern: /^(_fbp|_fbc|_fr|^fr)$/, provider: 'Meta (Facebook)' },
+      { pattern: /^_hj/, provider: 'Hotjar' },
+      { pattern: /^(_clck|_clsk|CLID|SM)$/, provider: 'Microsoft Clarity' },
+      { pattern: /^(MUID|ANONCHK|SRM_B)$/, provider: 'Microsoft' },
       { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
+      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID)/, provider: 'ASP.NET' },
+      { pattern: /^(\.ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
+      { pattern: /^(cityidc_|CNC_PSIC)/, provider: 'Store Selection' },
       { pattern: /(session|SESS)/i, provider: 'Session Management' },
       { pattern: /(csrf|XSRF)/i, provider: 'Security' },
       { pattern: /^rs-cmp-consent$/, provider: 'Consent Management' }
@@ -1657,25 +1664,32 @@ class CookieScanner {
       '_gat': 'analytics',
       '_gat_gtag': 'analytics',
       '_gac': 'analytics',
+      '_gcl_au': 'analytics', // Google Tag Manager (analytics, not marketing)
+      '_dc_gtm_': 'analytics', // Google Tag Manager throttle cookie
       '__utma': 'analytics',
       '__utmb': 'analytics',
       '__utmc': 'analytics',
       '__utmt': 'analytics',
       '__utmz': 'analytics',
       '_hjid': 'analytics',
+      '_hjFirstSeen': 'analytics', // Hotjar
       '_hjIncludedInPageviewSample': 'analytics',
+      '_hjIncludedInSessionSample': 'analytics', // Hotjar
       '_hjAbsoluteSessionInProgress': 'analytics',
+      '_hjSession': 'analytics', // Hotjar
+      '_hjSessionUser_': 'analytics', // Hotjar
       '_clck': 'analytics', // Microsoft Clarity
       '_clsk': 'analytics',
       'CLID': 'analytics',
+      'SM': 'analytics', // Microsoft - indicates MUID update
       
       // Marketing/Advertising cookies
       '_fbp': 'marketing',
       '_fbc': 'marketing',
       'fr': 'marketing', // Facebook
+      '_fr': 'marketing', // Facebook with underscore prefix
       'tr': 'marketing',
-      '_gcl_au': 'marketing', // Google AdSense
-      '_gcl_aw': 'marketing',
+      '_gcl_aw': 'marketing', // Google Ads
       '_gcl_dc': 'marketing',
       'IDE': 'marketing', // Google DoubleClick
       'DSID': 'marketing',
@@ -1688,6 +1702,8 @@ class CookieScanner {
       '__ttd': 'marketing',
       'YSC': 'marketing', // YouTube
       'VISITOR_INFO1_LIVE': 'marketing',
+      'MUID': 'marketing', // Microsoft advertising
+      'ANONCHK': 'marketing', // Microsoft advertising check
       
       // Preference cookies
       'lang': 'preferences',
@@ -1702,12 +1718,19 @@ class CookieScanner {
       'PHPSESSID': 'necessary',
       'JSESSIONID': 'necessary',
       'ASPSESSIONID': 'necessary',
+      '.ASPXANONYMOUS': 'necessary', // ASP.NET anonymous
+      'ASP.NET_ID': 'necessary', // ASP.NET session
+      '.ARRAffinity': 'necessary', // Azure affinity
+      'ARRAffinitySameSite': 'necessary', // Azure affinity SameSite
       'session': 'necessary',
       'csrf': 'necessary',
       'XSRF-TOKEN': 'necessary',
       '__cfduid': 'necessary', // Cloudflare
       '__cf_bm': 'necessary',
-      'rs-cmp-consent': 'necessary' // Our own consent cookie
+      'rs-cmp-consent': 'necessary', // Our own consent cookie
+      'cityidc_': 'necessary', // Custom first-party - store selection
+      'CNC_PSIC': 'necessary', // Custom first-party - store selection
+      'SRM_B': 'necessary' // Microsoft Bing unique ID
     };
   }
 
