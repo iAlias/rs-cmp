@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RS-CMP Test</title>
+  
+  <!-- Load the CMP -->
+  <script src="dist/cmp-js.js"></script>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #2563eb;
+      color: white;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    #cookie-list {
+      margin-top: 15px;
+      padding: 10px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .cookie-item {
+      padding: 5px;
+      margin: 3px 0;
+      background: white;
+      border-left: 3px solid #2563eb;
+      padding-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>RS-CMP Testing Page</h1>
+  
+  <div class="test-section">
+    <h2>Test Cookies Setup</h2>
+    <p>This page will set various test cookies to verify the CMP functionality.</p>
+    <button onclick="setTestCookies()">Set Test Cookies</button>
+    <button onclick="showCookieList()">Show Detected Cookies</button>
+    <button onclick="showCookiePatterns()">Show Cookie Patterns</button>
+    <button onclick="window.RSCMP.showPreferences()">Open Preferences</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>Detected Cookies</h2>
+    <div id="cookie-list"></div>
+  </div>
+  
+  <!-- Google Analytics simulation -->
+  <script>
+    // Set test cookies for different categories
+    function setTestCookies() {
+      // Analytics cookies
+      document.cookie = "_ga=test_ga_value; path=/";
+      document.cookie = "_ga_C7XGPG5T37=test_ga_value; path=/";
+      document.cookie = "_gcl_au=test_gcl_au_value; path=/";
+      document.cookie = "_clck=test_clck_value; path=/";
+      document.cookie = "_clsk=test_clsk_value; path=/";
+      document.cookie = "CLID=test_clid_value; path=/";
+      document.cookie = "ai_session=test_ai_session_value; path=/";
+      document.cookie = "ai_user=test_ai_user_value; path=/";
+      
+      // Marketing cookies
+      document.cookie = "_fbp=test_fbp_value; path=/";
+      document.cookie = "IDE=test_ide_value; path=/";
+      document.cookie = "NID=test_nid_value; path=/";
+      document.cookie = "AEC=test_aec_value; path=/";
+      document.cookie = "APISID=test_apisid_value; path=/";
+      document.cookie = "SAPISID=test_sapisid_value; path=/";
+      document.cookie = "HSID=test_hsid_value; path=/";
+      document.cookie = "SID=test_sid_value; path=/";
+      document.cookie = "SSID=test_ssid_value; path=/";
+      document.cookie = "SIDCC=test_sidcc_value; path=/";
+      document.cookie = "__Secure-3PSIDTS=test_value; path=/";
+      document.cookie = "__Secure-BUCKET=test_value; path=/";
+      document.cookie = "Secure-ENID=test_value; path=/";
+      document.cookie = "ADS_VISITOR_ID=test_value; path=/";
+      document.cookie = "MUID=test_muid_value; path=/";
+      document.cookie = "wd=test_wd_value; path=/";
+      document.cookie = "ps_l=test_ps_l_value; path=/";
+      document.cookie = "SEARCH_SAMESITE=test_value; path=/";
+      
+      // Necessary cookies
+      document.cookie = "rs-cmp-consent=1; path=/";
+      document.cookie = ".ASPXANONYMOUS=test_aspx_value; path=/";
+      document.cookie = "ASP.NET_Sessionld=test_session_value; path=/";
+      document.cookie = "cityidc_95024=test_store_value; path=/";
+      
+      // Preferences
+      document.cookie = "S=test_s_value; path=/";
+      
+      alert('Test cookies set! Click "Show Detected Cookies" to see them.');
+      
+      // Rescan cookies
+      window.RSCMP.cookieScanner.performInitialScan();
+    }
+    
+    function showCookieList() {
+      const cookies = window.RSCMP.getDetectedCookies();
+      const container = document.getElementById('cookie-list');
+      
+      if (cookies.length === 0) {
+        container.innerHTML = '<p>No cookies detected. Click "Set Test Cookies" first.</p>';
+        return;
+      }
+      
+      // Group by category
+      const grouped = {
+        necessary: [],
+        analytics: [],
+        marketing: [],
+        preferences: []
+      };
+      
+      cookies.forEach(cookie => {
+        grouped[cookie.category].push(cookie);
+      });
+      
+      let html = '<h3>Total Cookies: ' + cookies.length + '</h3>';
+      
+      for (const [category, cookieList] of Object.entries(grouped)) {
+        if (cookieList.length > 0) {
+          html += '<h4>' + category.toUpperCase() + ' (' + cookieList.length + ')</h4>';
+          cookieList.forEach(cookie => {
+            html += '<div class="cookie-item"><strong>' + cookie.name + '</strong> - ' + cookie.category + '</div>';
+          });
+        }
+      }
+      
+      container.innerHTML = html;
+    }
+    
+    function showCookiePatterns() {
+      const patterns = window.RSCMP.cookieScanner.cookiePatterns;
+      console.log('Cookie Patterns:', patterns);
+      alert('Cookie patterns logged to console. Check the console to see all ' + Object.keys(patterns).length + ' patterns.');
+    }
+    
+    // Initialize CMP
+    window.RSCMP.init().then(() => {
+      console.log('[Test] CMP initialized');
+      console.log('[Test] Cookie Scanner:', window.RSCMP.cookieScanner);
+      console.log('[Test] Cookie Patterns:', window.RSCMP.cookieScanner.cookiePatterns);
+      
+      // Set test cookies after a short delay
+      setTimeout(() => {
+        setTestCookies();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
