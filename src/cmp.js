@@ -1866,8 +1866,14 @@ class RSCMP {
       if (inlineConfig) {
         this.config = this.mergeWithDefaults(inlineConfig);
       } else if (this.siteId) {
-        // Load from API
-        this.config = await this.loadConfig(this.siteId);
+        // Try to load from API, fall back to default if unavailable
+        try {
+          this.config = await this.loadConfig(this.siteId);
+          console.log('[RS-CMP] Configuration loaded from API');
+        } catch (apiError) {
+          console.warn('[RS-CMP] Failed to load config from API, using default configuration:', apiError.message);
+          this.config = this.getDefaultConfig();
+        }
       } else {
         // Use default configuration
         this.config = this.getDefaultConfig();
@@ -1926,10 +1932,12 @@ class RSCMP {
    */
   async loadConfig(siteId) {
     const apiUrl = this.getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/site/${siteId}/config`);
+    const configUrl = `${apiUrl}/v1/site/${siteId}/config`;
+    
+    const response = await fetch(configUrl);
     
     if (!response.ok) {
-      throw new Error(`Failed to load config: ${response.status}`);
+      throw new Error(`Failed to load config from ${configUrl}: ${response.status}`);
     }
     
     return response.json();
@@ -2341,11 +2349,11 @@ class RSCMP {
 // INITIALIZATION
 // ============================================================================
 
-// Create instance and expose to window
-// Initialization must be done explicitly by calling window.RSCMP.init()
+// Create instance  
+const cmpInstance = new RSCMP();
+
+// Expose to window and return for IIFE assignment
 if (typeof window !== 'undefined') {
-  const cmpInstance = new RSCMP();
-  
   // Early script blocking - run immediately to block scripts before they execute
   // This is crucial for proper cookie blocking
   if (document.readyState === 'loading') {
@@ -2361,4 +2369,15 @@ if (typeof window !== 'undefined') {
   window.RSCMP = cmpInstance;
   
   console.log('[RS-CMP] Ready. Call window.RSCMP.init() to initialize.');
+}
+
+// Export for both IIFE (esbuild) and other module systems
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+  module.exports = cmpInstance;
+} else {
+  // For IIFE, this will be the return value
+  if (typeof window === 'undefined') {
+    // Node.js or other non-browser environment
+    globalThis.RSCMP = cmpInstance;
+  }
 }
