@@ -1513,7 +1513,7 @@ class BannerUI {
             <tr>
               <th>Cookie Name</th>
               <th>Provider</th>
-              <th>Type</th>
+              <th>Origin</th>
             </tr>
           </thead>
           <tbody>
@@ -1521,7 +1521,7 @@ class BannerUI {
               <tr>
                 <td>${this.escapeHtml(s.name)}</td>
                 <td>${this.escapeHtml(s.provider)}</td>
-                <td>${this.escapeHtml(s.type)}</td>
+                <td>${this.escapeHtml(s.origin)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1533,42 +1533,43 @@ class BannerUI {
   /**
    * Group cookies into services with friendly names
    * @param {DetectedCookie[]} cookies - Array of detected cookies
-   * @returns {Array<{name: string, provider: string, type: string}>}
+   * @returns {Array<{name: string, provider: string, origin: string}>}
    */
   groupCookiesIntoServices(cookies) {
+    // Provider detection patterns
+    const providerPatterns = [
+      { pattern: /^_g(a|id|at|ac)/, provider: 'Google Analytics' },
+      { pattern: /^_gcl/, provider: 'Google Ads' },
+      { pattern: /^(_fbp|_fbc|fr)$/, provider: 'Meta (Facebook)' },
+      { pattern: /^(_clck|_clsk|CLID)/, provider: 'Microsoft Clarity' },
+      { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
+      { pattern: /(session|SESS)/i, provider: 'Session Management' },
+      { pattern: /(csrf|XSRF)/i, provider: 'Security' },
+      { pattern: /^rs-cmp-consent$/, provider: 'Consent Management' }
+    ];
+    
     return cookies.map(cookie => {
       let provider = 'Unknown';
-      let displayName = cookie.name;
       
-      // Determine provider based on cookie name patterns
-      if (cookie.name.startsWith('_ga') || cookie.name.startsWith('_gid') || cookie.name.startsWith('_gat')) {
-        provider = 'Google Analytics';
-      } else if (cookie.name.startsWith('_gcl')) {
-        provider = 'Google Ads';
-      } else if (cookie.name.startsWith('_fbp') || cookie.name.startsWith('_fbc') || cookie.name === 'fr') {
-        provider = 'Meta (Facebook)';
-      } else if (cookie.name.startsWith('_clck') || cookie.name.startsWith('_clsk') || cookie.name === 'CLID') {
-        provider = 'Microsoft Clarity';
-      } else if (cookie.name.startsWith('_ttp') || cookie.name.startsWith('__ttd')) {
-        provider = 'TikTok';
-      } else if (cookie.name.includes('session') || cookie.name.includes('SESS')) {
-        provider = 'Session Management';
-      } else if (cookie.name.includes('csrf') || cookie.name.includes('XSRF')) {
-        provider = 'Security';
-      } else if (cookie.name === 'rs-cmp-consent') {
-        provider = 'Consent Management';
-      } else if (cookie.isFirstParty) {
-        provider = 'First-party';
-      } else {
-        provider = 'Third-party';
+      // Check against provider patterns
+      for (const { pattern, provider: providerName } of providerPatterns) {
+        if (pattern.test(cookie.name)) {
+          provider = providerName;
+          break;
+        }
       }
       
-      const type = cookie.isFirstParty ? 'First-party' : 'Third-party';
+      // Fallback to first-party/third-party if no specific provider found
+      if (provider === 'Unknown') {
+        provider = cookie.isFirstParty ? 'First-party' : 'Third-party';
+      }
+      
+      const origin = cookie.isFirstParty ? 'First-party' : 'Third-party';
       
       return {
-        name: displayName,
+        name: cookie.name,
         provider: provider,
-        type: type
+        origin: origin
       };
     });
   }
