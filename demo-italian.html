@@ -82,6 +82,14 @@
         });
     </script>
     <script src="dist/cmp-js.js"></script>
+    <script>
+        // Initialize CMP explicitly
+        window.RSCMP.init().then(() => {
+            console.log('✅ CMP initialized');
+        }).catch(err => {
+            console.error('❌ CMP initialization failed:', err);
+        });
+    </script>
     
     <script>
         function testConsent() {
