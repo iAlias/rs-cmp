@@ -438,24 +438,19 @@ class ScriptBlocker {
         // Copy all attributes, preserving critical security and module attributes
         Array.from(script.attributes).forEach((attr) => {
           if (attr.name === 'type') {
-            // Use original type instead
+            // Use original type instead of blocked type
             newScript.setAttribute('type', originalType);
           } else if (attr.name === 'data-original-type') {
             // Skip internal attribute
           } else {
             // Copy all other attributes including:
-            // - type="module", nomodule
+            // - nomodule
             // - nonce (CSP)
             // - integrity (SRI)
             // - crossorigin (CORS)
             newScript.setAttribute(attr.name, attr.value);
           }
         });
-
-        // Ensure type is set correctly (if it wasn't in attributes)
-        if (!newScript.hasAttribute('type')) {
-          newScript.type = originalType;
-        }
 
         // Copy content if inline script
         if (script.textContent) {
@@ -1707,6 +1702,8 @@ class CookieScanner {
 
   /**
    * Scan cookies on demand (only in debug mode after consent change)
+   * Performance optimization: Cookie scanning is expensive and only needed during development/debugging.
+   * In production, this should remain disabled to avoid unnecessary overhead.
    * @returns {void}
    */
   scanOnConsentChange() {
