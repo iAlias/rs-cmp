@@ -704,137 +704,6 @@ class GoogleConsentMode {
 }
 
 // ============================================================================
-// SERVICE LOADER
-// ============================================================================
-
-class ServiceLoader {
-  /**
-   * @param {ConsentManager} consentManager - Consent manager instance
-   */
-  constructor(consentManager) {
-    /** @type {ConsentManager} */
-    this.consentManager = consentManager;
-    /** @type {Set<string>} */
-    this.loadedServices = new Set(); // Track loaded services to prevent double initialization
-    /** @type {Object} */
-    this.services = {
-      'meta-pixel': {
-        id: null,
-        category: 'marketing',
-        loader: (pixelId) => {
-          if (!pixelId || window.fbq) return;
-          !function(f,b,e,v,n,t,s){
-            if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-            n.queue=[];t=b.createElement(e);t.async=!0;
-            t.src=v;s=b.getElementsByTagName(e)[0];
-            s.parentNode.insertBefore(t,s)
-          }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-          window.fbq('init', pixelId);
-          window.fbq('track', 'PageView');
-        }
-      },
-      'clarity': {
-        id: null,
-        category: 'analytics',
-        loader: (projectId) => {
-          if (!projectId || window.clarity) return;
-          (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;
-            t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-          })(window,document,"clarity","script",projectId);
-        }
-      },
-      'tiktok-pixel': {
-        id: null,
-        category: 'marketing',
-        loader: (pixelId) => {
-          if (!pixelId || window.ttq) return;
-          !function(w,d,t){
-            w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
-            ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];
-            ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
-            for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
-            ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
-            ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";
-            ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;
-            ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=document.createElement("script");
-            o.type="text/javascript";o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;
-            var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
-            ttq.load(pixelId);ttq.page();
-          }(window,document,'ttq');
-        }
-      },
-      'google-ads': {
-        conversionId: null,
-        conversionLabel: null,
-        category: 'marketing',
-        loader: (config) => {
-          // Gestito via Google Consent Mode
-          console.log('[RS-CMP] Google Ads ready via Consent Mode:', config);
-        }
-      }
-    };
-  }
-
-  /**
-   * Configure a service with custom settings
-   * @param {string} serviceId - Service identifier
-   * @param {Object} config - Service configuration
-   * @returns {void}
-   */
-  configure(serviceId, config) {
-    if (this.services[serviceId]) {
-      this.services[serviceId] = { ...this.services[serviceId], ...config };
-    }
-  }
-
-  /**
-   * Load a specific service
-   * @param {string} serviceId - Service identifier
-   * @returns {void}
-   */
-  loadService(serviceId) {
-    // Protection against double initialization
-    if (this.loadedServices.has(serviceId)) {
-      console.log(`[RS-CMP] Service ${serviceId} already loaded, skipping`);
-      return;
-    }
-    
-    const service = this.services[serviceId];
-    if (!service) return;
-    
-    const hasConsent = this.consentManager.hasConsent(service.category);
-    if (hasConsent && service.loader) {
-      try {
-        service.loader(service.id || service);
-        this.loadedServices.add(serviceId); // Mark as loaded
-        console.log(`[RS-CMP] Service loaded: ${serviceId}`);
-      } catch (error) {
-        console.error(`[RS-CMP] Failed to load service ${serviceId}:`, error);
-      }
-    }
-  }
-
-  /**
-   * Load all services based on consent categories
-   * @param {ConsentCategories} categories - Consent categories
-   * @returns {void}
-   */
-  loadAllServices(categories) {
-    Object.keys(this.services).forEach(serviceId => {
-      const service = this.services[serviceId];
-      if (categories[service.category]) {
-        this.loadService(serviceId);
-      }
-    });
-  }
-}
-
-// ============================================================================
 // BANNER UI
 // ============================================================================
 
@@ -1949,6 +1818,60 @@ class CookieScanner {
   }
 
   /**
+   * Delete cookies by category
+   * @param {string[]} categories - Categories of cookies to delete (e.g., ['analytics', 'marketing'])
+   * @returns {void}
+   */
+  deleteCookiesByCategory(categories) {
+    // Perform a fresh scan to get the latest cookies
+    const currentCookies = this.scanCookies();
+    let processedCount = 0;
+    
+    for (const cookie of currentCookies) {
+      if (categories.includes(cookie.category)) {
+        // Try to delete with various domain and path combinations
+        this.deleteCookie(cookie.name);
+        processedCount++;
+        
+        // Remove from detected cookies
+        this.detectedCookies.delete(cookie.name);
+      }
+    }
+    
+    if (processedCount > 0) {
+      console.log(`[CookieScanner] Attempted to delete ${processedCount} cookies from categories: ${categories.join(', ')}`);
+    }
+  }
+  
+  /**
+   * Delete a single cookie
+   * Attempts multiple domain/path combinations to ensure deletion
+   * @param {string} name - Cookie name
+   * @returns {void}
+   */
+  deleteCookie(name) {
+    // Delete with current path
+    document.cookie = `${name}=; max-age=0; path=/`;
+    
+    // Also try to delete with domain variants (for cross-domain cookies)
+    if (this.currentDomain) {
+      // Delete for current domain
+      document.cookie = `${name}=; max-age=0; path=/; domain=${this.currentDomain}`;
+      
+      // Delete for parent domain with dot prefix
+      document.cookie = `${name}=; max-age=0; path=/; domain=.${this.currentDomain}`;
+      
+      // If subdomain, try parent domain
+      const domainParts = this.currentDomain.split('.');
+      if (domainParts.length > 2) {
+        const parentDomain = domainParts.slice(1).join('.');
+        document.cookie = `${name}=; max-age=0; path=/; domain=${parentDomain}`;
+        document.cookie = `${name}=; max-age=0; path=/; domain=.${parentDomain}`;
+      }
+    }
+  }
+
+  /**
    * Clear all detected cookies
    * @returns {void}
    */
@@ -1975,8 +1898,6 @@ class RSCMP {
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     /** @type {GoogleConsentMode} */
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
-    /** @type {ServiceLoader} */
-    this.serviceLoader = new ServiceLoader(this.consentManager);
     /** @type {Config | null} */
     this.config = null;
     /** @type {string | null} */
@@ -2112,14 +2033,21 @@ class RSCMP {
    * @returns {void}
    */
   applyConsent(categories, shouldReload = false) {
+    // Delete cookies for categories that are not consented
+    const categoriesToDelete = [];
+    if (!categories.analytics) categoriesToDelete.push('analytics');
+    if (!categories.marketing) categoriesToDelete.push('marketing');
+    if (!categories.preferences) categoriesToDelete.push('preferences');
+    
+    if (categoriesToDelete.length > 0) {
+      this.cookieScanner.deleteCookiesByCategory(categoriesToDelete);
+    }
+    
     // Unblock scripts based on consent
     this.scriptBlocker.unblockScripts(categories);
     
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
-    
-    // Load services based on consent
-    this.serviceLoader.loadAllServices(categories);
     
     // Scan cookies after consent change (only in debug mode)
     this.cookieScanner.scanOnConsentChange();
@@ -2135,16 +2063,6 @@ class RSCMP {
     if (shouldReload) {
       console.log('[RS-CMP] Page reload requested but skipped - using hot-swapping instead');
     }
-  }
-
-  /**
-   * Configure a service (public method)
-   * @param {string} serviceId - Service identifier
-   * @param {Object} config - Service configuration
-   * @returns {void}
-   */
-  configureService(serviceId, config) {
-    this.serviceLoader.configure(serviceId, config);
   }
 
   /**
