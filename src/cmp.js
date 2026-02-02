@@ -1949,6 +1949,59 @@ class CookieScanner {
   }
 
   /**
+   * Delete cookies by category
+   * @param {string[]} categories - Categories of cookies to delete (e.g., ['analytics', 'marketing'])
+   * @returns {void}
+   */
+  deleteCookiesByCategory(categories) {
+    const allCookies = this.getAllCookies();
+    let deletedCount = 0;
+    
+    for (const cookie of allCookies) {
+      if (categories.includes(cookie.category)) {
+        // Try to delete with various domain and path combinations
+        this.deleteCookie(cookie.name);
+        deletedCount++;
+        
+        // Remove from detected cookies
+        this.detectedCookies.delete(cookie.name);
+      }
+    }
+    
+    if (deletedCount > 0) {
+      console.log(`[CookieScanner] Deleted ${deletedCount} cookies from categories: ${categories.join(', ')}`);
+    }
+  }
+  
+  /**
+   * Delete a single cookie
+   * Attempts multiple domain/path combinations to ensure deletion
+   * @param {string} name - Cookie name
+   * @returns {void}
+   */
+  deleteCookie(name) {
+    // Delete with current path
+    document.cookie = `${name}=; max-age=0; path=/`;
+    
+    // Also try to delete with domain variants (for cross-domain cookies)
+    if (this.currentDomain) {
+      // Delete for current domain
+      document.cookie = `${name}=; max-age=0; path=/; domain=${this.currentDomain}`;
+      
+      // Delete for parent domain with dot prefix
+      document.cookie = `${name}=; max-age=0; path=/; domain=.${this.currentDomain}`;
+      
+      // If subdomain, try parent domain
+      const domainParts = this.currentDomain.split('.');
+      if (domainParts.length > 2) {
+        const parentDomain = domainParts.slice(1).join('.');
+        document.cookie = `${name}=; max-age=0; path=/; domain=${parentDomain}`;
+        document.cookie = `${name}=; max-age=0; path=/; domain=.${parentDomain}`;
+      }
+    }
+  }
+
+  /**
    * Clear all detected cookies
    * @returns {void}
    */
@@ -2112,6 +2165,16 @@ class RSCMP {
    * @returns {void}
    */
   applyConsent(categories, shouldReload = false) {
+    // Delete cookies for categories that are not consented
+    const categoriesToDelete = [];
+    if (!categories.analytics) categoriesToDelete.push('analytics');
+    if (!categories.marketing) categoriesToDelete.push('marketing');
+    if (!categories.preferences) categoriesToDelete.push('preferences');
+    
+    if (categoriesToDelete.length > 0) {
+      this.cookieScanner.deleteCookiesByCategory(categoriesToDelete);
+    }
+    
     // Unblock scripts based on consent
     this.scriptBlocker.unblockScripts(categories);
     
