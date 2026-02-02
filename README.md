@@ -19,26 +19,42 @@ A GDPR-compliant Consent Management Platform (CMP) that respects GDPR and ePriva
 
 #### Quick Start
 
-**IMPORTANT: The CMP script must be loaded FIRST in your `<head>` section, before any tracking scripts!**
+**IMPORTANT: The CMP script must be placed immediately after the `<title>` tag in your `<head>` section, before any other scripts!**
 
 Add this script to your website's `<head>` section:
 
 ```html
 <head>
-  <!-- RS-CMP must be loaded FIRST -->
+  <meta charset="UTF-8">
+  <title>Your Site Title</title>
+  
+  <!-- RS-CMP must be immediately after <title> -->
   <script src="https://cdn.rs-cmp.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+  <script>
+    // Initialize the CMP explicitly
+    window.RSCMP.init().then(() => {
+      console.log('CMP initialized');
+    });
+  </script>
   
   <!-- Your other scripts come after -->
   <script src="your-other-scripts.js"></script>
 </head>
 ```
 
-That's it! The CMP will automatically:
-1. Block tracking scripts immediately
+The CMP will:
+1. Block tracking scripts immediately (before they execute)
 2. Load your site configuration
-3. Show the consent banner
-4. Apply user consent choices
-5. Reload the page when consent changes to properly apply blocking
+3. Show the consent banner if no consent exists
+4. Apply user consent choices dynamically without page reload
+
+#### Debug Mode
+
+To enable cookie scanning in debug mode (scans only after consent changes):
+
+```javascript
+window.RSCMP.setDebugMode(true);
+```
 
 #### Manual Script Blocking
 
@@ -70,9 +86,15 @@ For precise control, mark scripts with `data-category` and `type="text/plain"`:
 
 **How it works:**
 1. Scripts with `type="text/plain"` won't execute automatically
-2. When user gives consent, the CMP reloads the page
-3. On reload, consented scripts are unblocked and execute normally
+2. When user gives consent, the CMP unblocks scripts dynamically (no page reload)
+3. Consented scripts are recreated with proper type and execute
 4. Non-consented scripts remain blocked as `type="text/plain"`
+5. All critical script attributes (type="module", nonce, integrity, crossorigin) are preserved
+
+**Cookie Storage:**
+- Consent data is stored primarily in localStorage
+- A minimal cookie (`rs-cmp-consent=1`) is used only as a presence indicator
+- Full consent state is maintained in localStorage for privacy and efficiency
 
 ### 🏗️ Architecture
 
