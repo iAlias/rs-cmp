@@ -91,6 +91,26 @@ const STORAGE_KEY = 'rs-cmp-consent';
 const COOKIE_NAME = 'rs-cmp-consent';
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year in seconds
 
+/**
+ * Get CSP nonce for dynamically created elements
+ * @returns {string | null} Nonce value or null
+ */
+function getNonce() {
+  // Try to get nonce from script tag
+  const scriptWithNonce = document.querySelector('script[nonce]');
+  if (scriptWithNonce && scriptWithNonce.nonce) {
+    return scriptWithNonce.nonce;
+  }
+  
+  // Try to get nonce from meta tag
+  const metaWithNonce = document.querySelector('meta[property="csp-nonce"]');
+  if (metaWithNonce) {
+    return metaWithNonce.getAttribute('content');
+  }
+  
+  return null;
+}
+
 class ConsentStorage {
   /**
    * Save consent to localStorage and cookie
@@ -1046,6 +1066,13 @@ class BannerUI {
           }
         }
       `;
+      
+      // Apply CSP nonce if available
+      const nonce = getNonce();
+      if (nonce) {
+        style.setAttribute('nonce', nonce);
+      }
+      
       document.head.appendChild(style);
     }
   }
@@ -1404,6 +1431,13 @@ class BannerUI {
           }
         }
       `;
+      
+      // Apply CSP nonce if available
+      const nonce = getNonce();
+      if (nonce) {
+        style.setAttribute('nonce', nonce);
+      }
+      
       document.head.appendChild(style);
     }
 
@@ -1924,6 +1958,20 @@ class RSCMP {
   }
 
   /**
+   * Check if auto-init is enabled
+   * @private
+   * @returns {boolean} True if auto-init should happen (default), false if manual init required
+   */
+  shouldAutoInit() {
+    const scripts = document.querySelectorAll('script[data-site-id]');
+    if (scripts.length > 0) {
+      const autoInit = scripts[0].getAttribute('data-auto-init');
+      return autoInit !== 'false'; // Default true, only false if explicitly set to 'false'
+    }
+    return true; // Default to auto-init if no script tag found
+  }
+
+  /**
    * Load configuration from API
    * @private
    * @param {string} siteId - Site identifier
@@ -2292,6 +2340,13 @@ class RSCMP {
           }
         }
       `;
+      
+      // Apply CSP nonce if available
+      const nonce = getNonce();
+      if (nonce) {
+        style.setAttribute('nonce', nonce);
+      }
+      
       document.head.appendChild(style);
     }
 
@@ -2363,10 +2418,21 @@ if (typeof window !== 'undefined') {
   }
   
   // Expose to window for manual control
-  // Users MUST call window.RSCMP.init() explicitly
   window.RSCMP = cmpInstance;
   
-  console.log('[RS-CMP] Ready. Call window.RSCMP.init() to initialize.');
+  // Check if auto-init is enabled (default: true)
+  const autoInit = cmpInstance.shouldAutoInit();
+  
+  if (autoInit) {
+    // Auto-initialize the CMP
+    console.log('[RS-CMP] Auto-initializing...');
+    cmpInstance.init().catch(err => {
+      console.error('[RS-CMP] Auto-initialization failed:', err);
+    });
+  } else {
+    // Manual initialization required
+    console.log('[RS-CMP] Manual init required. Call window.RSCMP.init() to initialize.');
+  }
 }
 
 // Export for both IIFE (esbuild) and other module systems
