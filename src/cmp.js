@@ -841,10 +841,13 @@ class ServiceLoader {
 class BannerUI {
   /**
    * @param {ConsentManager} consentManager - Consent manager instance
+   * @param {CookieScanner} cookieScanner - Cookie scanner instance
    */
-  constructor(consentManager) {
+  constructor(consentManager, cookieScanner) {
     /** @type {ConsentManager} */
     this.consentManager = consentManager;
+    /** @type {CookieScanner} */
+    this.cookieScanner = cookieScanner;
     /** @type {HTMLElement | null} */
     this.bannerElement = null;
     /** @type {Config | null} */
@@ -1149,6 +1152,9 @@ class BannerUI {
    */
   showCustomizeModal() {
     if (!this.config) return;
+
+    // Refresh cookie scan before showing modal to get latest cookies
+    this.cookieScanner.performInitialScan();
 
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
@@ -1485,34 +1491,29 @@ class BannerUI {
    * @returns {string} HTML for category services
    */
   getServicesForCategory(categoryId) {
-    const servicesMap = {
-      analytics: [
-        { name: 'Google Analytics 4', provider: 'Google', duration: '2 years' },
-        { name: 'Microsoft Clarity', provider: 'Microsoft', duration: '1 year' }
-      ],
-      marketing: [
-        { name: 'Google Ads', provider: 'Google', duration: '90 days' },
-        { name: 'Meta Pixel', provider: 'Meta', duration: '90 days' },
-        { name: 'TikTok Pixel', provider: 'TikTok', duration: '13 months' }
-      ],
-      preferences: [
-        { name: 'Language Settings', provider: 'First-party', duration: '1 year' },
-        { name: 'Theme Preferences', provider: 'First-party', duration: '1 year' }
-      ]
-    };
+    // Get cookies from the cookie scanner for this category
+    const cookies = this.cookieScanner?.getCookiesByCategory(categoryId) || [];
     
-    const services = servicesMap[categoryId] || [];
+    // If no cookies detected, show a message
+    if (cookies.length === 0) {
+      return `
+        <div class="rs-cmp-category-services rs-cmp-hidden">
+          <p class="rs-cmp-no-cookies">No cookies detected for this category.</p>
+        </div>
+      `;
+    }
     
-    if (services.length === 0) return '';
+    // Group cookies by a friendly name/provider (infer from cookie name)
+    const services = this.groupCookiesIntoServices(cookies);
     
     return `
       <div class="rs-cmp-category-services rs-cmp-hidden">
         <table class="rs-cmp-services-table">
           <thead>
             <tr>
-              <th>Service</th>
+              <th>Cookie Name</th>
               <th>Provider</th>
-              <th>Duration</th>
+              <th>Origin</th>
             </tr>
           </thead>
           <tbody>
@@ -1520,13 +1521,64 @@ class BannerUI {
               <tr>
                 <td>${this.escapeHtml(s.name)}</td>
                 <td>${this.escapeHtml(s.provider)}</td>
-                <td>${this.escapeHtml(s.duration)}</td>
+                <td>${this.escapeHtml(s.origin)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  /**
+   * Group cookies into services with friendly names
+   * @param {DetectedCookie[]} cookies - Array of detected cookies
+   * @returns {Array<{name: string, provider: string, origin: string}>}
+   */
+  groupCookiesIntoServices(cookies) {
+    // Provider detection patterns
+    const providerPatterns = [
+      { pattern: /^_g(a|id|at|ac)/, provider: 'Google Analytics' },
+      { pattern: /^_gcl_au$/, provider: 'Google Tag Manager' },
+      { pattern: /^_gcl/, provider: 'Google Ads' },
+      { pattern: /^_dc_gtm_/, provider: 'Google Tag Manager' },
+      { pattern: /^(_fbp|_fbc|_fr|^fr)$/, provider: 'Meta (Facebook)' },
+      { pattern: /^_hj/, provider: 'Hotjar' },
+      { pattern: /^(_clck|_clsk|CLID|SM)$/, provider: 'Microsoft Clarity' },
+      { pattern: /^(MUID|ANONCHK|SRM_B)$/, provider: 'Microsoft' },
+      { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
+      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID)/, provider: 'ASP.NET' },
+      { pattern: /^(\.ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
+      { pattern: /^(cityidc_|CNC_PSIC)/, provider: 'Store Selection' },
+      { pattern: /(session|SESS)/i, provider: 'Session Management' },
+      { pattern: /(csrf|XSRF)/i, provider: 'Security' },
+      { pattern: /^rs-cmp-consent$/, provider: 'Consent Management' }
+    ];
+    
+    return cookies.map(cookie => {
+      let provider = 'Unknown';
+      
+      // Check against provider patterns
+      for (const { pattern, provider: providerName } of providerPatterns) {
+        if (pattern.test(cookie.name)) {
+          provider = providerName;
+          break;
+        }
+      }
+      
+      // Fallback to first-party/third-party if no specific provider found
+      if (provider === 'Unknown') {
+        provider = cookie.isFirstParty ? 'First-party' : 'Third-party';
+      }
+      
+      const origin = cookie.isFirstParty ? 'First-party' : 'Third-party';
+      
+      return {
+        name: cookie.name,
+        provider: provider,
+        origin: origin
+      };
+    });
   }
 
   /**
@@ -1576,11 +1628,28 @@ class CookieScanner {
     /** @type {Map<string, DetectedCookie>} */
     this.detectedCookies = new Map();
     /** @type {boolean} */
-    this.debugMode = false; // Only scan in debug mode
+    this.debugMode = false;
     /** @type {Object.<string, string>} */
     this.cookiePatterns = this.initializeCookiePatterns();
     /** @type {string | null} */
     this.currentDomain = typeof window !== 'undefined' ? window.location.hostname : null;
+    
+    // Perform initial scan on construction
+    if (typeof document !== 'undefined') {
+      this.performInitialScan();
+    }
+  }
+
+  /**
+   * Perform initial cookie scan
+   * @returns {void}
+   */
+  performInitialScan() {
+    const cookies = this.scanCookies();
+    for (const cookie of cookies) {
+      this.detectedCookies.set(cookie.name, cookie);
+    }
+    console.log(`[CookieScanner] Initial scan complete: ${cookies.length} cookies detected`);
   }
 
   /**
@@ -1595,25 +1664,32 @@ class CookieScanner {
       '_gat': 'analytics',
       '_gat_gtag': 'analytics',
       '_gac': 'analytics',
+      '_gcl_au': 'analytics', // Google Tag Manager (analytics, not marketing)
+      '_dc_gtm_': 'analytics', // Google Tag Manager throttle cookie
       '__utma': 'analytics',
       '__utmb': 'analytics',
       '__utmc': 'analytics',
       '__utmt': 'analytics',
       '__utmz': 'analytics',
       '_hjid': 'analytics',
+      '_hjFirstSeen': 'analytics', // Hotjar
       '_hjIncludedInPageviewSample': 'analytics',
+      '_hjIncludedInSessionSample': 'analytics', // Hotjar
       '_hjAbsoluteSessionInProgress': 'analytics',
+      '_hjSession': 'analytics', // Hotjar
+      '_hjSessionUser_': 'analytics', // Hotjar
       '_clck': 'analytics', // Microsoft Clarity
       '_clsk': 'analytics',
       'CLID': 'analytics',
+      'SM': 'analytics', // Microsoft - indicates MUID update
       
       // Marketing/Advertising cookies
       '_fbp': 'marketing',
       '_fbc': 'marketing',
       'fr': 'marketing', // Facebook
+      '_fr': 'marketing', // Facebook with underscore prefix
       'tr': 'marketing',
-      '_gcl_au': 'marketing', // Google AdSense
-      '_gcl_aw': 'marketing',
+      '_gcl_aw': 'marketing', // Google Ads
       '_gcl_dc': 'marketing',
       'IDE': 'marketing', // Google DoubleClick
       'DSID': 'marketing',
@@ -1626,6 +1702,8 @@ class CookieScanner {
       '__ttd': 'marketing',
       'YSC': 'marketing', // YouTube
       'VISITOR_INFO1_LIVE': 'marketing',
+      'MUID': 'marketing', // Microsoft advertising
+      'ANONCHK': 'marketing', // Microsoft advertising check
       
       // Preference cookies
       'lang': 'preferences',
@@ -1640,12 +1718,19 @@ class CookieScanner {
       'PHPSESSID': 'necessary',
       'JSESSIONID': 'necessary',
       'ASPSESSIONID': 'necessary',
+      '.ASPXANONYMOUS': 'necessary', // ASP.NET anonymous
+      'ASP.NET_ID': 'necessary', // ASP.NET session
+      '.ARRAffinity': 'necessary', // Azure affinity
+      'ARRAffinitySameSite': 'necessary', // Azure affinity SameSite
       'session': 'necessary',
       'csrf': 'necessary',
       'XSRF-TOKEN': 'necessary',
       '__cfduid': 'necessary', // Cloudflare
       '__cf_bm': 'necessary',
-      'rs-cmp-consent': 'necessary' // Our own consent cookie
+      'rs-cmp-consent': 'necessary', // Our own consent cookie
+      'cityidc_': 'necessary', // Custom first-party - store selection
+      'CNC_PSIC': 'necessary', // Custom first-party - store selection
+      'SRM_B': 'necessary' // Microsoft Bing unique ID
     };
   }
 
@@ -1735,17 +1820,12 @@ class CookieScanner {
   }
 
   /**
-   * Scan cookies on demand (only in debug mode after consent change)
-   * Performance optimization: Cookie scanning is expensive and only needed during development/debugging.
-   * In production, this should remain disabled to avoid unnecessary overhead.
+   * Scan cookies on demand (after consent change)
+   * Scans cookies to detect what has been added/changed after user consent
    * @returns {void}
    */
   scanOnConsentChange() {
-    if (!this.debugMode) {
-      return; // Only scan in debug mode
-    }
-    
-    console.log('[CookieScanner] Scanning cookies after consent change (debug mode)...');
+    console.log('[CookieScanner] Scanning cookies after consent change...');
     const currentCookies = this.scanCookies();
     
     for (const cookie of currentCookies) {
@@ -1866,16 +1946,16 @@ class RSCMP {
     this.consentStorage = new ConsentStorage();
     /** @type {ConsentManager} */
     this.consentManager = new ConsentManager(this.consentStorage);
+    /** @type {CookieScanner} */
+    this.cookieScanner = new CookieScanner();
     /** @type {BannerUI} */
-    this.bannerUI = new BannerUI(this.consentManager);
+    this.bannerUI = new BannerUI(this.consentManager, this.cookieScanner);
     /** @type {ScriptBlocker} */
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     /** @type {GoogleConsentMode} */
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
     /** @type {ServiceLoader} */
     this.serviceLoader = new ServiceLoader(this.consentManager);
-    /** @type {CookieScanner} */
-    this.cookieScanner = new CookieScanner();
     /** @type {Config | null} */
     this.config = null;
     /** @type {string | null} */
