@@ -1,5 +1,4 @@
 node_modules/
-dist/
 *.log
 .env
 .DS_Store
@@ -17,3 +16,4 @@ test-auto-init.html
 test-manual-init.html
 test-cookie-deletion.html
 simple-server.js
+consent_logs.jsonl
