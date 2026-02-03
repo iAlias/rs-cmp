@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Tag Manager Integration - OpenConsent v2</title>
+    
+    <!-- OpenConsent v2 CMP - Place early in <head>, BEFORE GTM -->
+    <script src="../dist/cmp.min.js" data-site-id="demo-gtm-site"></script>
+    <script>
+        // Initialize CMP before GTM
+        window.RSCMP.init({
+            siteId: 'demo-gtm-site',
+            apiUrl: 'http://localhost:3000',
+            config: {
+                banner: {
+                    position: 'bottom',
+                    layout: 'bar',
+                    primaryColor: '#10b981',
+                    backgroundColor: '#ffffff',
+                    textColor: '#1f2937',
+                    buttonTextColor: '#ffffff'
+                },
+                categories: [
+                    {
+                        id: 'necessary',
+                        name: 'Necessary',
+                        description: 'Essential cookies required for the site to function',
+                        required: true,
+                        enabled: true
+                    },
+                    {
+                        id: 'analytics',
+                        name: 'Analytics',
+                        description: 'Google Analytics and other analytics tools',
+                        required: false,
+                        enabled: false
+                    },
+                    {
+                        id: 'marketing',
+                        name: 'Advertising',
+                        description: 'Google Ads, Facebook Ads, and remarketing',
+                        required: false,
+                        enabled: false
+                    },
+                    {
+                        id: 'preferences',
+                        name: 'Personalization',
+                        description: 'Content personalization and user preferences',
+                        required: false,
+                        enabled: false
+                    }
+                ]
+            }
+        }).then(() => {
+            console.log('CMP initialized - Google Consent Mode is active');
+            
+            // The CMP automatically sets Google Consent Mode default values
+            // and updates them when user changes consent
+        });
+    </script>
+    
+    <!-- Google Tag Manager -->
+    <!-- Replace GTM-XXXXXXX with your actual GTM container ID -->
+    <script type="text/plain" data-category="analytics">
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-XXXXXXX');
+    </script>
+    <!-- End Google Tag Manager -->
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #10b981;
+        }
+        .info-box {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .code-block {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .consent-mode-status {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-XXXXXXX"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    
+    <h1>🏷️ Google Tag Manager Integration</h1>
+    
+    <div class="info-box">
+        <h2>Google Consent Mode v2 Integration</h2>
+        <p>This example demonstrates how OpenConsent v2 automatically integrates with Google Consent Mode v2 and Google Tag Manager.</p>
+        <p><strong>What's happening:</strong></p>
+        <ul>
+            <li>✅ CMP initializes <strong>before</strong> GTM</li>
+            <li>✅ Google Consent Mode default values are set automatically</li>
+            <li>✅ GTM script is blocked until analytics consent is given</li>
+            <li>✅ Consent signals are updated in real-time (no page reload)</li>
+            <li>✅ All Google services respect the consent choices</li>
+        </ul>
+    </div>
+    
+    <div class="warning-box">
+        <h3>⚠️ Important Setup Notes</h3>
+        <ul>
+            <li>Replace <code>GTM-XXXXXXX</code> with your actual GTM container ID</li>
+            <li>The GTM script must have <code>type="text/plain" data-category="analytics"</code></li>
+            <li>CMP must be loaded <strong>before</strong> GTM in the HTML</li>
+            <li>In GTM, configure your tags to respect Consent Mode signals</li>
+        </ul>
+    </div>
+    
+    <h2>Current Consent Mode Status</h2>
+    <p>The following shows the current Google Consent Mode values:</p>
+    <div id="consent-mode-status" class="consent-mode-status">
+        Loading...
+    </div>
+    
+    <h2>Test Consent Changes</h2>
+    <p>Use these buttons to test how consent changes affect Google Consent Mode:</p>
+    
+    <button onclick="window.RSCMP.showBanner()">Show Banner</button>
+    <button onclick="window.RSCMP.resetConsent()">Reset Consent</button>
+    <button onclick="acceptAll()">Accept All (Programmatic)</button>
+    <button onclick="rejectAll()">Reject All (Programmatic)</button>
+    
+    <h2>Implementation Code</h2>
+    <p>Here's the complete implementation for GTM integration:</p>
+    
+    <div class="code-block">
+&lt;!-- 1. Load OpenConsent v2 CMP first --&gt;
+&lt;script src="https://cdn.example.com/cmp.min.js" data-site-id="your-site-id"&gt;&lt;/script&gt;
+&lt;script&gt;
+    window.RSCMP.init({
+        siteId: 'your-site-id',
+        apiUrl: 'https://your-api-server.com',
+        config: { /* your config */ }
+    });
+&lt;/script&gt;
+
+&lt;!-- 2. Load GTM with type="text/plain" and data-category="analytics" --&gt;
+&lt;script type="text/plain" data-category="analytics"&gt;
+    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-XXXXXXX');
+&lt;/script&gt;
+    </div>
+    
+    <h2>Google Consent Mode Mapping</h2>
+    <p>OpenConsent v2 automatically maps consent categories to Google Consent Mode:</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+            <tr style="background: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #d1d5db;">OpenConsent Category</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #d1d5db;">Google Consent Mode Parameter</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>analytics</code></td>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>analytics_storage</code></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>marketing</code></td>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>ad_storage</code>, <code>ad_user_data</code>, <code>ad_personalization</code></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>preferences</code></td>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>personalization_storage</code></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>necessary</code></td>
+                <td style="padding: 10px; border: 1px solid #d1d5db;"><code>functionality_storage</code>, <code>security_storage</code></td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h2>Testing in GTM</h2>
+    <div class="info-box">
+        <h3>How to verify it's working:</h3>
+        <ol>
+            <li>Open GTM Preview mode</li>
+            <li>Load this page</li>
+            <li>In GTM Preview, check the "Consent" tab</li>
+            <li>You should see the consent state values</li>
+            <li>Change consent preferences and watch the values update</li>
+            <li>Verify that tags fire/block based on consent</li>
+        </ol>
+    </div>
+    
+    <h2>Advanced: Custom Events</h2>
+    <p>You can listen to consent changes and push custom events to dataLayer:</p>
+    <div class="code-block">
+// Listen to consent updates
+window.addEventListener('rscmp:consent-updated', (event) => {
+    console.log('Consent updated:', event.detail);
+    
+    // Push to dataLayer for GTM
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+        'event': 'consent_updated',
+        'consent_analytics': event.detail.categories.analytics,
+        'consent_marketing': event.detail.categories.marketing,
+        'consent_preferences': event.detail.categories.preferences
+    });
+});
+    </div>
+    
+    <script>
+        // Update consent mode status display
+        function updateConsentModeStatus() {
+            const consent = window.RSCMP ? window.RSCMP.getConsent() : null;
+            const statusEl = document.getElementById('consent-mode-status');
+            
+            if (consent) {
+                const gcmState = {
+                    'analytics_storage': consent.categories.analytics ? 'granted' : 'denied',
+                    'ad_storage': consent.categories.marketing ? 'granted' : 'denied',
+                    'ad_user_data': consent.categories.marketing ? 'granted' : 'denied',
+                    'ad_personalization': consent.categories.marketing ? 'granted' : 'denied',
+                    'personalization_storage': consent.categories.preferences ? 'granted' : 'denied',
+                    'functionality_storage': consent.categories.necessary ? 'granted' : 'denied',
+                    'security_storage': consent.categories.necessary ? 'granted' : 'denied'
+                };
+                
+                statusEl.innerHTML = Object.entries(gcmState)
+                    .map(([key, value]) => {
+                        const icon = value === 'granted' ? '✅' : '❌';
+                        return `${icon} ${key}: <strong>${value}</strong>`;
+                    })
+                    .join('<br>');
+            } else {
+                statusEl.innerHTML = '⏳ Waiting for consent...';
+            }
+        }
+        
+        // Helper functions
+        function acceptAll() {
+            window.RSCMP.updateConsent({
+                necessary: true,
+                analytics: true,
+                marketing: true,
+                preferences: true
+            });
+        }
+        
+        function rejectAll() {
+            window.RSCMP.updateConsent({
+                necessary: true,
+                analytics: false,
+                marketing: false,
+                preferences: false
+            });
+        }
+        
+        // Update status periodically
+        setInterval(updateConsentModeStatus, 1000);
+        updateConsentModeStatus();
+        
+        // Listen to consent updates
+        window.addEventListener('rscmp:consent-updated', (event) => {
+            console.log('✅ Consent updated:', event.detail);
+            updateConsentModeStatus();
+        });
+    </script>
+</body>
+</html>

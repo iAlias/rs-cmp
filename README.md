@@ -1,6 +1,26 @@
-# RS-CMP - Consent Management Platform
+# OpenConsent v2 🍪
 
-A GDPR-compliant Consent Management Platform (CMP) that respects GDPR and ePrivacy standards.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Size: <40kb](https://img.shields.io/badge/Size-<40kb-green.svg)]()
+[![Google Consent Mode v2](https://img.shields.io/badge/Google%20Consent%20Mode-v2-red.svg)]()
+[![GDPR Compliant](https://img.shields.io/badge/GDPR-Compliant-success.svg)]()
+
+**A lightweight, dependency-free GDPR Consent Management Platform with native Google Consent Mode v2 support.**
+
+The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect for developers who want full control over their consent management without vendor lock-in or monthly fees.
+
+## ✨ Why OpenConsent v2?
+
+- 🚀 **No Dependencies** - Pure JavaScript, runs anywhere
+- 🎯 **Google Consent Mode v2** - Native integration, no configuration needed
+- 🔒 **GDPR First** - IP hashing, secure storage, data export built-in
+- ⚡ **Lightweight** - < 40kb minified + gzipped (~15kb)
+- 🎨 **Fully Customizable** - Colors, position, layout, and translations
+- 🔄 **SPA Support** - MutationObserver for dynamic content
+- 🛡️ **CSP Compatible** - Works with Content Security Policy (nonce support)
+- 🍪 **Automatic Cookie Cleaning** - Removes cookies when consent is revoked
+- 🎭 **Script Blocking** - Block tracking scripts until consent is given
+- 📦 **Batteries Included** - Backend examples for Node.js and PHP
 
 ## Features
 
@@ -14,6 +34,95 @@ A GDPR-compliant Consent Management Platform (CMP) that respects GDPR and ePriva
 - **Multi-language Support**: Auto-detect user language
 - **REST API**: Backend API for configuration and consent logging
 - **GDPR Compliant**: IP hashing, secure storage, data export
+
+### 📦 Quick Start
+
+**Step 1: Add the script to your HTML (immediately after `<title>`)**
+
+```html
+<head>
+  <title>Your Website</title>
+  
+  <!-- OpenConsent v2 - Load this FIRST -->
+  <script src="https://cdn.example.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+  <script>
+    window.RSCMP.init({
+      siteId: 'YOUR_SITE_ID',
+      apiUrl: 'https://your-api-server.com'
+    }).then(() => console.log('CMP ready'));
+  </script>
+  
+  <!-- Your other scripts -->
+</head>
+```
+
+**Step 2: Mark tracking scripts with `data-category`**
+
+```html
+<!-- Google Analytics - Will only load if user consents to analytics -->
+<script type="text/plain" data-category="analytics">
+  (function(i,s,o,g,r,a,m){...})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+</script>
+
+<!-- Facebook Pixel - Will only load if user consents to marketing -->
+<script type="text/plain" data-category="marketing">
+  !function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+</script>
+```
+
+**Step 3: Set up the backend (optional but recommended)**
+
+```bash
+cd server-side
+npm install express
+node node-logger.js  # or use php-logger.php for PHP
+```
+
+**That's it!** The CMP will:
+- ✅ Show a consent banner on first visit
+- ✅ Block scripts marked with `data-category` until consent is given
+- ✅ Automatically integrate with Google Consent Mode v2
+- ✅ Store consent choices (localStorage + cookie)
+- ✅ Log consent to your backend (if configured)
+
+---
+
+## 📂 Repository Structure
+
+```
+rs-cmp/
+├── dist/                       # Minified production files
+│   ├── cmp.min.js             # Ready-to-use CMP (<40kb)
+│   └── cmp-js.min.js          # Alternative build name
+├── src/                        # Source code
+│   └── cmp.js                 # Main CMP implementation
+├── examples/                   # 🌟 Live examples
+│   ├── basic.html             # Simple implementation
+│   └── gtm-implementation.html # Google Tag Manager integration
+├── server-side/               # 🔧 Backend examples
+│   ├── node-logger.js         # Node.js/Express logger
+│   ├── php-logger.php         # PHP logger
+│   └── README.md              # Server setup guide
+├── LICENSE                     # MIT License
+└── README.md                   # This file
+```
+
+### 🎯 Try the Examples
+
+1. **Basic Example**: [`examples/basic.html`](examples/basic.html)
+   - Simple implementation with all features
+   - Test buttons for consent management
+   - Live consent status display
+
+2. **Google Tag Manager**: [`examples/gtm-implementation.html`](examples/gtm-implementation.html)
+   - Complete GTM integration guide
+   - Google Consent Mode v2 visualization
+   - Live consent mode status display
+
+3. **Backend Setup**: [`server-side/`](server-side/)
+   - Node.js logger (Express)
+   - PHP logger
+   - Database examples (PostgreSQL, MySQL, MongoDB, SQLite)
 
 ### 📦 Installation
 
