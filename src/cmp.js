@@ -143,9 +143,10 @@ class ConsentStorage {
       if (stored) {
         const data = JSON.parse(stored);
         
-        // Check if consent has expired (12 months)
-        const months = (Date.now() - new Date(data.timestamp).getTime()) / (1000 * 60 * 60 * 24 * 30);
-        if (months > 12) {
+        // Check if consent has expired (12 months = 365 days)
+        const consentDate = new Date(data.timestamp);
+        const daysSinceConsent = (Date.now() - consentDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceConsent > 365) {
           console.log('[RS-CMP] Consent expired (> 12 months), clearing...');
           this.clearConsent();
           return null;

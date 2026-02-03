@@ -115,9 +115,9 @@
             // Test the 12-month expiration logic
             const resultEl = document.getElementById('expiration-result');
             
-            // Save a consent that's 13 months old
+            // Save a consent that's 13 months old (395 days)
             const oldDate = new Date();
-            oldDate.setMonth(oldDate.getMonth() - 13);
+            oldDate.setTime(oldDate.getTime() - (395 * 24 * 60 * 60 * 1000));
             
             const oldConsent = {
                 categories: {
@@ -135,7 +135,7 @@
             resultEl.innerHTML = `
                 <strong>✅ Test impostato:</strong><br>
                 - Consenso salvato con timestamp: ${oldDate.toISOString()}<br>
-                - Età: circa 13 mesi<br>
+                - Età: circa 13 mesi (395 giorni)<br>
                 - Ricarica la pagina per vedere se viene rimosso automaticamente
             `;
             
@@ -146,11 +146,8 @@
         window.addEventListener('load', () => {
             setTimeout(() => {
                 const consent = window.RSCMP.getConsent();
-                const resultEl = document.getElementById('expiration-result');
                 
                 if (!consent) {
-                    const oldDateTest = new Date();
-                    oldDateTest.setMonth(oldDateTest.getMonth() - 13);
                     const storedData = localStorage.getItem('rs-cmp-consent');
                     
                     if (!storedData) {
