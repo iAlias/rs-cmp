@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic CMP Example - OpenConsent v2</title>
+    
+    <!-- OpenConsent v2 CMP - Must be placed immediately after <title> -->
+    <script src="../dist/cmp.min.js" data-site-id="demo-site-001"></script>
+    <script>
+        // Initialize the CMP
+        window.RSCMP.init({
+            siteId: 'demo-site-001',
+            apiUrl: 'http://localhost:3000',
+            config: {
+                banner: {
+                    position: 'bottom',
+                    layout: 'bar',
+                    primaryColor: '#2563eb',
+                    backgroundColor: '#ffffff',
+                    textColor: '#1f2937',
+                    buttonTextColor: '#ffffff'
+                },
+                categories: [
+                    {
+                        id: 'necessary',
+                        name: 'Necessary',
+                        description: 'Essential cookies required for the site to function',
+                        required: true,
+                        enabled: true
+                    },
+                    {
+                        id: 'analytics',
+                        name: 'Analytics',
+                        description: 'Help us understand how visitors interact with our website',
+                        required: false,
+                        enabled: false
+                    },
+                    {
+                        id: 'marketing',
+                        name: 'Marketing',
+                        description: 'Used to track visitors across websites for marketing purposes',
+                        required: false,
+                        enabled: false
+                    },
+                    {
+                        id: 'preferences',
+                        name: 'Preferences',
+                        description: 'Remember your preferences and settings',
+                        required: false,
+                        enabled: false
+                    }
+                ]
+            }
+        }).then(() => {
+            console.log('CMP initialized successfully');
+        });
+    </script>
+    
+    <!-- Your tracking scripts go here -->
+    <!-- Google Analytics Example -->
+    <script type="text/plain" data-category="analytics">
+        console.log('Analytics script would load here');
+        // (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        // (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        // m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        // })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    </script>
+    
+    <!-- Facebook Pixel Example -->
+    <script type="text/plain" data-category="marketing">
+        console.log('Marketing script would load here');
+        // !function(f,b,e,v,n,t,s)
+        // {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        // n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        // if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        // n.queue=[];t=b.createElement(e);t.async=!0;
+        // t.src=v;s=b.getElementsByTagName(e)[0];
+        // s.parentNode.insertBefore(t,s)}(window, document,'script',
+        // 'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2563eb;
+        }
+        .info-box {
+            background: #f3f4f6;
+            border-left: 4px solid #2563eb;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .code-block {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🍪 OpenConsent v2 - Basic Example</h1>
+    
+    <div class="info-box">
+        <h2>Welcome to the Basic Example</h2>
+        <p>This page demonstrates the basic usage of OpenConsent v2, a lightweight GDPR-compliant Consent Management Platform.</p>
+        <p><strong>Features demonstrated:</strong></p>
+        <ul>
+            <li>✅ Automatic consent banner display</li>
+            <li>✅ Script blocking until consent is given</li>
+            <li>✅ Google Consent Mode v2 integration</li>
+            <li>✅ Customizable categories (Necessary, Analytics, Marketing, Preferences)</li>
+            <li>✅ No page reload required</li>
+        </ul>
+    </div>
+    
+    <h2>Test the CMP</h2>
+    <p>Use these buttons to test the consent management functionality:</p>
+    
+    <button onclick="window.RSCMP.showBanner()">Show Banner Again</button>
+    <button onclick="window.RSCMP.resetConsent()">Reset Consent</button>
+    <button onclick="console.log('Current consent:', window.RSCMP.getConsent())">Log Current Consent</button>
+    
+    <h2>Implementation</h2>
+    <p>Here's how this example is implemented:</p>
+    
+    <div class="code-block">
+&lt;!-- OpenConsent v2 CMP - Must be placed immediately after &lt;title&gt; --&gt;
+&lt;script src="../dist/cmp.min.js" data-site-id="demo-site-001"&gt;&lt;/script&gt;
+&lt;script&gt;
+    window.RSCMP.init({
+        siteId: 'demo-site-001',
+        apiUrl: 'http://localhost:3000',
+        config: { /* ... */ }
+    });
+&lt;/script&gt;
+
+&lt;!-- Blocked scripts with data-category --&gt;
+&lt;script type="text/plain" data-category="analytics"&gt;
+    // Your analytics code here
+&lt;/script&gt;
+    </div>
+    
+    <h2>Next Steps</h2>
+    <ul>
+        <li>Check out the <a href="gtm-implementation.html">Google Tag Manager example</a></li>
+        <li>Review the <a href="../README.md">full documentation</a></li>
+        <li>Set up the backend logging server (see <code>server-side/</code> folder)</li>
+    </ul>
+    
+    <div class="info-box">
+        <h3>📊 Consent Status</h3>
+        <p id="consent-status">Checking consent status...</p>
+    </div>
+    
+    <script>
+        // Display current consent status
+        function updateConsentStatus() {
+            const consent = window.RSCMP ? window.RSCMP.getConsent() : null;
+            const statusEl = document.getElementById('consent-status');
+            if (consent) {
+                statusEl.innerHTML = `
+                    <strong>Current Consent:</strong><br>
+                    Necessary: ${consent.categories.necessary ? '✅' : '❌'}<br>
+                    Analytics: ${consent.categories.analytics ? '✅' : '❌'}<br>
+                    Marketing: ${consent.categories.marketing ? '✅' : '❌'}<br>
+                    Preferences: ${consent.categories.preferences ? '✅' : '❌'}<br>
+                    <em>Timestamp: ${new Date(consent.timestamp).toLocaleString()}</em>
+                `;
+            } else {
+                statusEl.textContent = 'No consent recorded yet. The banner should be displayed.';
+            }
+        }
+        
+        // Update status every second
+        setInterval(updateConsentStatus, 1000);
+        updateConsentStatus();
+    </script>
+</body>
+</html>
