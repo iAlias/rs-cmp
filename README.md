@@ -1,11 +1,18 @@
 # OpenConsent v2 🍪
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Size: <40kb](https://img.shields.io/badge/Size-<40kb-green.svg)]()
-[![Google Consent Mode v2](https://img.shields.io/badge/Google%20Consent%20Mode-v2-red.svg)]()
-[![GDPR Compliant](https://img.shields.io/badge/GDPR-Compliant-success.svg)]()
+> ## **🚀 Native Google Consent Mode v2 Support Without Bloated Dependencies**
+> 
+> Zero dependencies. Full control. No monthly fees.
 
-**A lightweight, dependency-free GDPR Consent Management Platform with native Google Consent Mode v2 support.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/rs-cmp.svg?style=flat)](https://www.npmjs.com/package/rs-cmp)
+[![Size: <40kb](https://img.shields.io/badge/Size-<40kb-green.svg)]()
+[![Google Consent Mode v2](https://img.shields.io/badge/Google%20Consent%20Mode-v2-4285F4.svg)]()
+[![GDPR Compliant](https://img.shields.io/badge/GDPR-Compliant-success.svg)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6.svg)]()
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen.svg)]()
+
+**The lightweight, dependency-free GDPR Consent Management Platform with native Google Consent Mode v2 support.**
 
 The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect for developers who want full control over their consent management without vendor lock-in or monthly fees.
 
@@ -35,55 +42,52 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
 - **REST API**: Backend API for configuration and consent logging
 - **GDPR Compliant**: IP hashing, secure storage, data export
 
-### 📦 Quick Start
+### ⚡ Quick Start (Copy & Paste!)
 
-**Step 1: Add the script to your HTML (immediately after `<title>`)**
+**No configuration needed. Just paste this in your `<head>` and you're done:**
 
 ```html
+<!DOCTYPE html>
+<html>
 <head>
   <title>Your Website</title>
   
-  <!-- OpenConsent v2 - Load this FIRST -->
-  <script src="https://cdn.example.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+  <!-- 1️⃣ OpenConsent v2 - Copy this block -->
+  <script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@main/dist/cmp.min.js"></script>
   <script>
     window.RSCMP.init({
-      siteId: 'YOUR_SITE_ID',
-      apiUrl: 'https://your-api-server.com'
-    }).then(() => console.log('CMP ready'));
+      siteId: 'demo',  // Change this to your site ID
+    }).then(() => console.log('✅ CMP ready!'));
   </script>
   
-  <!-- Your other scripts -->
+  <!-- 2️⃣ Block tracking scripts with data-category -->
+  <script type="text/plain" data-category="analytics">
+    // Google Analytics - Blocked until consent
+    gtag('config', 'GA_MEASUREMENT_ID');
+  </script>
+  
+  <script type="text/plain" data-category="marketing">
+    // Facebook Pixel - Blocked until consent
+    fbq('init', 'YOUR_PIXEL_ID');
+  </script>
 </head>
+<body>
+  <h1>Your Website</h1>
+  <!-- Your content here -->
+</body>
+</html>
 ```
 
-**Step 2: Mark tracking scripts with `data-category`**
+**🎉 That's it!** The CMP will:
+- ✅ Show a GDPR-compliant consent banner on first visit
+- ✅ Block ALL scripts marked with `data-category` until consent
+- ✅ Automatically integrate with **Google Consent Mode v2** (zero config!)
+- ✅ Store consent choices securely (localStorage + cookie)
+- ✅ Work with Google Tag Manager, Google Analytics, Facebook Pixel, etc.
 
-```html
-<!-- Google Analytics - Will only load if user consents to analytics -->
-<script type="text/plain" data-category="analytics">
-  (function(i,s,o,g,r,a,m){...})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-</script>
+**📱 Try it now:** Open `examples/basic.html` in your browser to see it in action!
 
-<!-- Facebook Pixel - Will only load if user consents to marketing -->
-<script type="text/plain" data-category="marketing">
-  !function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-</script>
-```
-
-**Step 3: Set up the backend (optional but recommended)**
-
-```bash
-cd server-side
-npm install express
-node node-logger.js  # or use php-logger.php for PHP
-```
-
-**That's it!** The CMP will:
-- ✅ Show a consent banner on first visit
-- ✅ Block scripts marked with `data-category` until consent is given
-- ✅ Automatically integrate with Google Consent Mode v2
-- ✅ Store consent choices (localStorage + cookie)
-- ✅ Log consent to your backend (if configured)
+**🚀 Optional:** Set up backend logging (see `server-side/` folder for Node.js/PHP examples)
 
 ---
 
