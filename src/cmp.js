@@ -141,7 +141,17 @@ class ConsentStorage {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const data = JSON.parse(stored);
+        
+        // Check if consent has expired (12 months)
+        const months = (Date.now() - new Date(data.timestamp).getTime()) / (1000 * 60 * 60 * 24 * 30);
+        if (months > 12) {
+          console.log('[RS-CMP] Consent expired (> 12 months), clearing...');
+          this.clearConsent();
+          return null;
+        }
+        
+        return data;
       }
     } catch (error) {
       console.warn('[RS-CMP] Failed to read from localStorage:', error);
@@ -2358,7 +2368,7 @@ class RSCMP {
       translations: {
         it: {
           title: 'Rispettiamo la tua privacy',
-          description: 'Utilizziamo cookie per migliorare la tua esperienza sul nostro sito.',
+          description: 'Utilizziamo i cookie per finalità tecniche e, con il tuo consenso, anche per le finalità di esperienza, analisi e marketing come specificato nella cookie policy. Puoi liberamente prestare, rifiutare o revocare il tuo consenso, in qualsiasi momento, accedendo al pannello delle preferenze. Il rifiuto del consenso può rendere non disponibili le relative funzioni.',
           acceptAll: 'Accetta tutto',
           rejectAll: 'Rifiuta tutto',
           customize: 'Personalizza',
