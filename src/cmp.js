@@ -628,6 +628,22 @@ class ScriptBlocker {
       console.log('[RS-CMP] Script observer stopped');
     }
   }
+
+  /**
+   * Get blocked scripts by category
+   * @param {string} categoryId - Category ID (necessary, analytics, marketing, preferences)
+   * @returns {Array<HTMLScriptElement>} Array of blocked script elements
+   */
+  getBlockedScriptsByCategory(categoryId) {
+    if (!this.blockedScripts || this.blockedScripts.length === 0) {
+      return [];
+    }
+    
+    return this.blockedScripts.filter(script => {
+      const scriptCategory = script.getAttribute('data-category');
+      return scriptCategory === categoryId;
+    });
+  }
 }
 
 // ============================================================================
@@ -711,12 +727,15 @@ class BannerUI {
   /**
    * @param {ConsentManager} consentManager - Consent manager instance
    * @param {CookieScanner} cookieScanner - Cookie scanner instance
+   * @param {ScriptBlocker} scriptBlocker - Script blocker instance
    */
-  constructor(consentManager, cookieScanner) {
+  constructor(consentManager, cookieScanner, scriptBlocker) {
     /** @type {ConsentManager} */
     this.consentManager = consentManager;
     /** @type {CookieScanner} */
     this.cookieScanner = cookieScanner;
+    /** @type {ScriptBlocker} */
+    this.scriptBlocker = scriptBlocker;
     /** @type {HTMLElement | null} */
     this.bannerElement = null;
     /** @type {Config | null} */
@@ -1361,17 +1380,33 @@ class BannerUI {
     // Get cookies from the cookie scanner for this category
     const cookies = this.cookieScanner?.getCookiesByCategory(categoryId) || [];
     
-    // If no cookies detected, show a message
-    if (cookies.length === 0) {
+    // Get blocked scripts for this category
+    const blockedScripts = this.scriptBlocker?.getBlockedScriptsByCategory(categoryId) || [];
+    
+    // If no cookies and no blocked scripts detected, show a message
+    if (cookies.length === 0 && blockedScripts.length === 0) {
       return `
         <div class="rs-cmp-category-services rs-cmp-hidden">
-          <p class="rs-cmp-no-cookies">No cookies detected for this category.</p>
+          <p class="rs-cmp-no-cookies">No cookies or scripts detected for this category.</p>
         </div>
       `;
     }
     
     // Group cookies by a friendly name/provider (infer from cookie name)
     const services = this.groupCookiesIntoServices(cookies);
+    
+    // Add services from blocked scripts
+    const scriptServices = this.getServicesFromBlockedScripts(blockedScripts);
+    
+    // Merge services, avoiding duplicates by provider
+    const allServices = [...services];
+    scriptServices.forEach(scriptService => {
+      // Only add if we don't already have this provider from cookies
+      const exists = allServices.some(s => s.provider === scriptService.provider);
+      if (!exists) {
+        allServices.push(scriptService);
+      }
+    });
     
     return `
       <div class="rs-cmp-category-services rs-cmp-hidden">
@@ -1384,7 +1419,7 @@ class BannerUI {
             </tr>
           </thead>
           <tbody>
-            ${services.map(s => `
+            ${allServices.map(s => `
               <tr>
                 <td>${this.escapeHtml(s.name)}</td>
                 <td>${this.escapeHtml(s.provider)}</td>
@@ -1451,6 +1486,80 @@ class BannerUI {
         origin: origin
       };
     });
+  }
+
+  /**
+   * Get services from blocked scripts
+   * @param {Array<HTMLScriptElement>} scripts - Array of blocked script elements
+   * @returns {Array<{name: string, provider: string, origin: string}>}
+   */
+  getServicesFromBlockedScripts(scripts) {
+    const services = [];
+    const seenProviders = new Set();
+    
+    // Provider detection patterns - can be extended easily
+    const providerPatterns = [
+      { patterns: ['googleadservices.com', 'googlesyndication.com'], name: 'Google Ads' },
+      { patterns: ['google-analytics.com', 'analytics.js'], name: 'Google Analytics' },
+      { patterns: ['googletagmanager.com'], name: 'Google Tag Manager' },
+      { patterns: ['doubleclick.net'], name: 'DoubleClick' },
+      { patterns: ['connect.facebook.net', 'fbq('], name: 'Meta (Facebook)' },
+      { patterns: ['hotjar.com'], name: 'Hotjar' },
+      { patterns: ['clarity.ms'], name: 'Microsoft Clarity' },
+      { patterns: ['tiktok.com'], name: 'TikTok' }
+    ];
+    
+    scripts.forEach(script => {
+      const src = (script.src || '').toLowerCase();
+      let provider = null;
+      const scriptLabel = '(Script blocked)';
+      
+      // Check src first (most common case)
+      if (src) {
+        for (const { patterns, name } of providerPatterns) {
+          if (patterns.some(pattern => src.includes(pattern))) {
+            provider = name;
+            break;
+          }
+        }
+        
+        // If not found in patterns, use hostname
+        if (!provider) {
+          try {
+            const url = new URL(script.src);
+            provider = url.hostname;
+          } catch (e) {
+            provider = 'Third-party Script';
+          }
+        }
+      }
+      
+      // Check content only if src didn't match
+      if (!provider) {
+        const content = (script.textContent || '').toLowerCase();
+        if (content) {
+          for (const { patterns, name } of providerPatterns) {
+            if (patterns.some(pattern => content.includes(pattern))) {
+              provider = name;
+              break;
+            }
+          }
+        }
+        provider = provider || 'Inline Script';
+      }
+      
+      // Avoid duplicate providers
+      if (provider && !seenProviders.has(provider)) {
+        seenProviders.add(provider);
+        services.push({
+          name: scriptLabel,
+          provider: provider,
+          origin: src ? 'Third-party' : 'First-party'
+        });
+      }
+    });
+    
+    return services;
   }
 
   /**
@@ -1642,8 +1751,9 @@ class CookieScanner {
       }
     }
     
-    // Default to preferences for unknown cookies
-    return 'preferences';
+    // Default to necessary for unknown cookies to avoid deleting session/auth cookies
+    // This is a safer default to prevent accidentally logging out users
+    return 'necessary';
   }
 
   /**
@@ -1892,10 +2002,10 @@ class RSCMP {
     this.consentManager = new ConsentManager(this.consentStorage);
     /** @type {CookieScanner} */
     this.cookieScanner = new CookieScanner();
-    /** @type {BannerUI} */
-    this.bannerUI = new BannerUI(this.consentManager, this.cookieScanner);
     /** @type {ScriptBlocker} */
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
+    /** @type {BannerUI} */
+    this.bannerUI = new BannerUI(this.consentManager, this.cookieScanner, this.scriptBlocker);
     /** @type {GoogleConsentMode} */
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
     /** @type {Config | null} */
