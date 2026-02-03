@@ -1642,8 +1642,9 @@ class CookieScanner {
       }
     }
     
-    // Default to preferences for unknown cookies
-    return 'preferences';
+    // Default to necessary for unknown cookies to avoid deleting session/auth cookies
+    // This is a safer default to prevent accidentally logging out users
+    return 'necessary';
   }
 
   /**
