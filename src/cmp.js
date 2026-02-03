@@ -1497,50 +1497,62 @@ class BannerUI {
     const services = [];
     const seenProviders = new Set();
     
+    // Provider detection patterns - can be extended easily
+    const providerPatterns = [
+      { patterns: ['googleadservices.com', 'googlesyndication.com'], name: 'Google Ads' },
+      { patterns: ['google-analytics.com', 'analytics.js'], name: 'Google Analytics' },
+      { patterns: ['googletagmanager.com'], name: 'Google Tag Manager' },
+      { patterns: ['doubleclick.net'], name: 'DoubleClick' },
+      { patterns: ['connect.facebook.net', 'fbq('], name: 'Meta (Facebook)' },
+      { patterns: ['hotjar.com'], name: 'Hotjar' },
+      { patterns: ['clarity.ms'], name: 'Microsoft Clarity' },
+      { patterns: ['tiktok.com'], name: 'TikTok' }
+    ];
+    
     scripts.forEach(script => {
-      const src = script.src || '';
-      const content = script.textContent || '';
-      const combined = (src + ' ' + content).toLowerCase();
-      
+      const src = (script.src || '').toLowerCase();
       let provider = null;
-      let cookieName = '(Script blocked)';
+      const scriptLabel = '(Script blocked)';
       
-      // Detect provider from script source/content
-      if (combined.includes('googleadservices.com') || combined.includes('googlesyndication.com')) {
-        provider = 'Google Ads';
-      } else if (combined.includes('google-analytics.com') || combined.includes('analytics.js')) {
-        provider = 'Google Analytics';
-      } else if (combined.includes('googletagmanager.com')) {
-        provider = 'Google Tag Manager';
-      } else if (combined.includes('doubleclick.net')) {
-        provider = 'DoubleClick';
-      } else if (combined.includes('connect.facebook.net') || combined.includes('fbq(')) {
-        provider = 'Meta (Facebook)';
-      } else if (combined.includes('hotjar.com')) {
-        provider = 'Hotjar';
-      } else if (combined.includes('clarity.ms')) {
-        provider = 'Microsoft Clarity';
-      } else if (combined.includes('tiktok.com')) {
-        provider = 'TikTok';
-      } else {
-        // Generic provider based on src domain
-        if (src) {
+      // Check src first (most common case)
+      if (src) {
+        for (const { patterns, name } of providerPatterns) {
+          if (patterns.some(pattern => src.includes(pattern))) {
+            provider = name;
+            break;
+          }
+        }
+        
+        // If not found in patterns, use hostname
+        if (!provider) {
           try {
-            const url = new URL(src);
+            const url = new URL(script.src);
             provider = url.hostname;
           } catch (e) {
             provider = 'Third-party Script';
           }
-        } else {
-          provider = 'Inline Script';
         }
+      }
+      
+      // Check content only if src didn't match
+      if (!provider) {
+        const content = (script.textContent || '').toLowerCase();
+        if (content) {
+          for (const { patterns, name } of providerPatterns) {
+            if (patterns.some(pattern => content.includes(pattern))) {
+              provider = name;
+              break;
+            }
+          }
+        }
+        provider = provider || 'Inline Script';
       }
       
       // Avoid duplicate providers
       if (provider && !seenProviders.has(provider)) {
         seenProviders.add(provider);
         services.push({
-          name: cookieName,
+          name: scriptLabel,
           provider: provider,
           origin: src ? 'Third-party' : 'First-party'
         });
