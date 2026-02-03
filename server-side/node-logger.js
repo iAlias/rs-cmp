@@ -77,6 +77,16 @@ const getClientIp = (req) => {
  * 
  * Log user consent choices
  * 
+ * ⚠️ SECURITY NOTE: This example does not include rate limiting.
+ * In production, add rate limiting middleware to prevent abuse:
+ * 
+ * const rateLimit = require('express-rate-limit');
+ * const limiter = rateLimit({
+ *   windowMs: 60 * 1000, // 1 minute
+ *   max: 100 // limit each IP to 100 requests per minute
+ * });
+ * app.post('/v1/consent', limiter, (req, res) => { ... });
+ * 
  * Request body:
  * {
  *   "siteId": "your-site-id",

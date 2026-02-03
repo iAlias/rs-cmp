@@ -44,7 +44,12 @@ POST http://localhost:3000/v1/consent
 ### PHP
 **File**: `php-logger.php`
 
-A simple PHP script that can run on any PHP hosting.
+A simple PHP script that can run on standard PHP hosting (requires PHP 7.0+).
+
+**Requirements:**
+- PHP 7.0 or higher
+- File write permissions for logging
+- Standard PHP functions: `json_encode`, `file_put_contents`, `hash`
 
 **Installation:**
 No installation required - just place on your PHP server.
