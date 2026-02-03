@@ -44,7 +44,18 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
 
 ### ⚡ Quick Start (Copy & Paste!)
 
-**No configuration needed. Just paste this in your `<head>` and you're done:**
+**Step 1: Download or use CDN**
+
+```html
+<!-- Option A: Use jsdelivr CDN (recommended for testing) -->
+<script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@latest/dist/cmp.min.js"></script>
+
+<!-- Option B: Download and host locally -->
+<!-- Download from: https://github.com/iAlias/rs-cmp/releases -->
+<script src="./dist/cmp.min.js"></script>
+```
+
+**Step 2: Add to your website**
 
 ```html
 <!DOCTYPE html>
@@ -53,10 +64,11 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
   <title>Your Website</title>
   
   <!-- 1️⃣ OpenConsent v2 - Copy this block -->
-  <script src="./dist/cmp.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@latest/dist/cmp.min.js"></script>
   <script>
     window.RSCMP.init({
       siteId: 'YOUR_SITE_ID',  // ⚠️ CHANGE THIS to your unique site ID
+      // apiUrl: 'https://your-api-server.com'  // Optional: for backend logging
     }).then(() => console.log('✅ CMP ready!'));
   </script>
   
@@ -66,12 +78,12 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
     (function() {
       var script = document.createElement('script');
       script.async = true;
-      script.src = 'https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID';
+      script.src = 'https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX';  // Replace with your GA4 ID
       document.head.appendChild(script);
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'GA_MEASUREMENT_ID');
+      gtag('config', 'G-XXXXXXXXXX');  // Replace with your GA4 ID
     })();
   </script>
   
@@ -85,7 +97,7 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window,document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', 'YOUR_PIXEL_ID');
+    fbq('init', '1234567890123456');  // Replace with your Pixel ID (16 digits)
     fbq('track', 'PageView');
   </script>
 </head>
