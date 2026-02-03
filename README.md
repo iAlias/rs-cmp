@@ -1,11 +1,18 @@
 # OpenConsent v2 🍪
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Size: <40kb](https://img.shields.io/badge/Size-<40kb-green.svg)]()
-[![Google Consent Mode v2](https://img.shields.io/badge/Google%20Consent%20Mode-v2-red.svg)]()
-[![GDPR Compliant](https://img.shields.io/badge/GDPR-Compliant-success.svg)]()
+> ## **🚀 Native Google Consent Mode v2 Support Without Bloated Dependencies**
+> 
+> Zero dependencies. Full control. No monthly fees.
 
-**A lightweight, dependency-free GDPR Consent Management Platform with native Google Consent Mode v2 support.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/rs-cmp.svg?style=flat)](https://www.npmjs.com/package/rs-cmp)
+[![Size: <40kb](https://img.shields.io/badge/Size-<40kb-green.svg)]()
+[![Google Consent Mode v2](https://img.shields.io/badge/Google%20Consent%20Mode-v2-4285F4.svg)]()
+[![GDPR Compliant](https://img.shields.io/badge/GDPR-Compliant-success.svg)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6.svg)]()
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen.svg)]()
+
+**The lightweight, dependency-free GDPR Consent Management Platform with native Google Consent Mode v2 support.**
 
 The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect for developers who want full control over their consent management without vendor lock-in or monthly fees.
 
@@ -35,55 +42,82 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
 - **REST API**: Backend API for configuration and consent logging
 - **GDPR Compliant**: IP hashing, secure storage, data export
 
-### 📦 Quick Start
+### ⚡ Quick Start (Copy & Paste!)
 
-**Step 1: Add the script to your HTML (immediately after `<title>`)**
+**Step 1: Download or use CDN**
 
 ```html
+<!-- Option A: Use jsdelivr CDN (recommended for testing) -->
+<script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@latest/dist/cmp.min.js"></script>
+
+<!-- Option B: Download and host locally -->
+<!-- Download from: https://github.com/iAlias/rs-cmp/releases -->
+<script src="./dist/cmp.min.js"></script>
+```
+
+**Step 2: Add to your website**
+
+```html
+<!DOCTYPE html>
+<html>
 <head>
   <title>Your Website</title>
   
-  <!-- OpenConsent v2 - Load this FIRST -->
-  <script src="https://cdn.example.com/cmp.min.js" data-site-id="YOUR_SITE_ID"></script>
+  <!-- 1️⃣ OpenConsent v2 - Copy this block -->
+  <script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@latest/dist/cmp.min.js"></script>
   <script>
     window.RSCMP.init({
-      siteId: 'YOUR_SITE_ID',
-      apiUrl: 'https://your-api-server.com'
-    }).then(() => console.log('CMP ready'));
+      siteId: 'YOUR_SITE_ID',  // ⚠️ CHANGE THIS to your unique site ID
+      // apiUrl: 'https://your-api-server.com'  // Optional: for backend logging
+    }).then(() => console.log('✅ CMP ready!'));
   </script>
   
-  <!-- Your other scripts -->
+  <!-- 2️⃣ Block tracking scripts with data-category -->
+  <script type="text/plain" data-category="analytics">
+    <!-- Google Analytics (gtag.js) -->
+    (function() {
+      var script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX';  // Replace with your GA4 ID
+      document.head.appendChild(script);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');  // Replace with your GA4 ID
+    })();
+  </script>
+  
+  <script type="text/plain" data-category="marketing">
+    <!-- Facebook Pixel -->
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window,document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1234567890123456');  // Replace with your Pixel ID (16 digits)
+    fbq('track', 'PageView');
+  </script>
 </head>
+<body>
+  <h1>Your Website</h1>
+  <!-- Your content here -->
+</body>
+</html>
 ```
 
-**Step 2: Mark tracking scripts with `data-category`**
+**🎉 That's it!** The CMP will:
+- ✅ Show a GDPR-compliant consent banner on first visit
+- ✅ Block ALL scripts marked with `data-category` until consent
+- ✅ Automatically integrate with **Google Consent Mode v2** (zero config!)
+- ✅ Store consent choices securely (localStorage + cookie)
+- ✅ Work with Google Tag Manager, Google Analytics, Facebook Pixel, etc.
 
-```html
-<!-- Google Analytics - Will only load if user consents to analytics -->
-<script type="text/plain" data-category="analytics">
-  (function(i,s,o,g,r,a,m){...})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-</script>
+**📱 Try it now:** Open `examples/basic.html` in your browser to see it in action!
 
-<!-- Facebook Pixel - Will only load if user consents to marketing -->
-<script type="text/plain" data-category="marketing">
-  !function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-</script>
-```
-
-**Step 3: Set up the backend (optional but recommended)**
-
-```bash
-cd server-side
-npm install express
-node node-logger.js  # or use php-logger.php for PHP
-```
-
-**That's it!** The CMP will:
-- ✅ Show a consent banner on first visit
-- ✅ Block scripts marked with `data-category` until consent is given
-- ✅ Automatically integrate with Google Consent Mode v2
-- ✅ Store consent choices (localStorage + cookie)
-- ✅ Log consent to your backend (if configured)
+**🚀 Optional:** Set up backend logging (see `server-side/` folder for Node.js/PHP examples)
 
 ---
 
