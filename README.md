@@ -53,22 +53,40 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
   <title>Your Website</title>
   
   <!-- 1️⃣ OpenConsent v2 - Copy this block -->
-  <script src="https://cdn.jsdelivr.net/gh/iAlias/rs-cmp@main/dist/cmp.min.js"></script>
+  <script src="./dist/cmp.min.js"></script>
   <script>
     window.RSCMP.init({
-      siteId: 'demo',  // Change this to your site ID
+      siteId: 'YOUR_SITE_ID',  // ⚠️ CHANGE THIS to your unique site ID
     }).then(() => console.log('✅ CMP ready!'));
   </script>
   
   <!-- 2️⃣ Block tracking scripts with data-category -->
   <script type="text/plain" data-category="analytics">
-    // Google Analytics - Blocked until consent
-    gtag('config', 'GA_MEASUREMENT_ID');
+    <!-- Google Analytics (gtag.js) -->
+    (function() {
+      var script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID';
+      document.head.appendChild(script);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'GA_MEASUREMENT_ID');
+    })();
   </script>
   
   <script type="text/plain" data-category="marketing">
-    // Facebook Pixel - Blocked until consent
+    <!-- Facebook Pixel -->
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window,document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
     fbq('init', 'YOUR_PIXEL_ID');
+    fbq('track', 'PageView');
   </script>
 </head>
 <body>
