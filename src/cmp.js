@@ -33,6 +33,8 @@
  * @property {string} buttonTextColor - Button text color
  * @property {boolean} showLogo - Whether to show logo
  * @property {string} [logoUrl] - Optional logo URL
+ * @property {string} [privacyPolicyUrl] - Optional privacy policy URL
+ * @property {string} [cookiePolicyUrl] - Optional cookie policy URL
  */
 
 /**
@@ -59,6 +61,8 @@
  * @property {string} customize - Customize button text
  * @property {string} save - Save button text
  * @property {string} close - Close button text
+ * @property {string} [privacyPolicy] - Privacy policy link text
+ * @property {string} [cookiePolicy] - Cookie policy link text
  * @property {Object.<string, CategoryTranslation>} categories - Category translations
  */
 
@@ -810,11 +814,15 @@ class BannerUI {
     this.applyStyles(banner, config);
 
     // Create banner content
+    const policyLinks = this.createPolicyLinks(config, translations);
     banner.innerHTML = `
       <div class="rs-cmp-content">
         ${config.banner.showLogo && config.banner.logoUrl ? `<img src="${config.banner.logoUrl}" alt="Logo" class="rs-cmp-logo" />` : ''}
         <h2 class="rs-cmp-title">${this.escapeHtml(translations.title)}</h2>
-        <p class="rs-cmp-description">${this.escapeHtml(translations.description)}</p>
+        <p class="rs-cmp-description">
+          ${this.escapeHtml(translations.description)}
+          ${policyLinks}
+        </p>
         <div class="rs-cmp-buttons">
           <button class="rs-cmp-btn rs-cmp-btn-accept" id="rs-cmp-accept-all">
             ${this.escapeHtml(translations.acceptAll)}
@@ -833,6 +841,32 @@ class BannerUI {
     this.attachEventListeners(banner);
 
     return banner;
+  }
+
+  /**
+   * Create policy links HTML
+   * @private
+   * @param {Config} config - CMP configuration
+   * @param {Translations} translations - Translations
+   * @returns {string} Policy links HTML
+   */
+  createPolicyLinks(config, translations) {
+    const links = [];
+    
+    if (config.banner.privacyPolicyUrl && translations.privacyPolicy) {
+      links.push(`<a href="${this.escapeHtml(config.banner.privacyPolicyUrl)}" class="rs-cmp-policy-link" target="_blank" rel="noopener noreferrer">${this.escapeHtml(translations.privacyPolicy)}</a>`);
+    }
+    
+    if (config.banner.cookiePolicyUrl && translations.cookiePolicy) {
+      links.push(`<a href="${this.escapeHtml(config.banner.cookiePolicyUrl)}" class="rs-cmp-policy-link" target="_blank" rel="noopener noreferrer">${this.escapeHtml(translations.cookiePolicy)}</a>`);
+    }
+    
+    if (links.length === 0) {
+      return '';
+    }
+    
+    // Return links with proper spacing
+    return '<br><span class="rs-cmp-policy-links">' + links.join(' | ') + '</span>';
   }
 
   /**
@@ -885,6 +919,23 @@ class BannerUI {
           line-height: 1.6;
           opacity: 0.85;
           max-width: 800px;
+        }
+        
+        .rs-cmp-policy-links {
+          display: inline-block;
+          margin-top: 8px;
+          font-size: 12px;
+        }
+        
+        .rs-cmp-policy-link {
+          color: ${primaryColor};
+          text-decoration: underline;
+          font-weight: 500;
+          transition: opacity 0.2s ease;
+        }
+        
+        .rs-cmp-policy-link:hover {
+          opacity: 0.8;
         }
         
         .rs-cmp-buttons {
@@ -2375,6 +2426,8 @@ class RSCMP {
           customize: 'Personalizza',
           save: 'Salva preferenze',
           close: 'Chiudi',
+          privacyPolicy: 'Privacy Policy',
+          cookiePolicy: 'Cookie Policy',
           categories: {
             necessary: { name: 'Necessari', description: 'Cookie essenziali per il funzionamento del sito' },
             analytics: { name: 'Analitici', description: 'Statistiche di utilizzo per migliorare il sito' },
@@ -2390,6 +2443,8 @@ class RSCMP {
           customize: 'Customize',
           save: 'Save Preferences',
           close: 'Close',
+          privacyPolicy: 'Privacy Policy',
+          cookiePolicy: 'Cookie Policy',
           categories: {
             necessary: { name: 'Necessary', description: 'Essential cookies' },
             analytics: { name: 'Analytics', description: 'Usage statistics' },

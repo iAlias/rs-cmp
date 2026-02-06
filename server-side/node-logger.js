@@ -129,8 +129,10 @@ app.post('/v1/consent', (req, res) => {
     
     console.log('✅ Consent logged:', {
       siteId: logEntry.siteId,
+      categories: logEntry.categories,
       ipHash: logEntry.ipHash,
-      timestamp: logEntry.timestamp
+      timestamp: logEntry.timestamp,
+      version: logEntry.version
     });
     
     res.json({ status: 'ok', timestamp: logEntry.serverTimestamp });
