@@ -31,22 +31,34 @@ Questa CMP rispetta i seguenti requisiti GDPR:
 
 **Implementazione**: Il backend (node-logger.js, php-logger.php) utilizza hash SHA-256 degli indirizzi IP prima di salvarli.
 
-### 5. ✅ Blocco Cookie Prima del Consenso
+### 5. ✅ Logging delle Categorie di Consenso
+**Requisito GDPR**: Art. 7(1) - Il titolare del trattamento deve essere in grado di dimostrare che l'interessato ha prestato il consenso.
+
+**Implementazione**: Il backend salva:
+- ✅ **Quali categorie** sono state accettate/rifiutate (`categories`)
+- ✅ **Quando** il consenso è stato dato (`timestamp`)
+- ✅ **Versione della policy** accettata (`version`)
+- ✅ **IP anonimizzato** dell'utente (`ipHash`)
+- ✅ **User agent** del browser (`userAgent`)
+
+**IMPORTANTE**: Non è sufficiente salvare solo che il consenso è avvenuto. Devi salvare **COSA** è stato consentito specificamente.
+
+### 6. ✅ Blocco Cookie Prima del Consenso
 **Requisito**: Cookie/tracking non essenziali non possono essere impostati prima del consenso.
 
 **Implementazione**: Tutti gli script con `data-category` vengono bloccati finché l'utente non dà il consenso.
 
-### 6. ✅ Scelte Granulari
+### 7. ✅ Scelte Granulari
 **Requisito**: L'utente deve poter scegliere quali categorie di cookie accettare.
 
 **Implementazione**: 4 categorie configurabili: Necessari, Analitici, Marketing, Preferenze.
 
-### 7. ✅ Google Consent Mode v2
+### 8. ✅ Google Consent Mode v2
 **Requisito**: Integrazione con Google per rispettare il Digital Markets Act (DMA).
 
 **Implementazione**: Integrazione nativa automatica con Google Consent Mode v2.
 
-### 8. ✅ Rimozione Cookie alla Revoca
+### 9. ✅ Rimozione Cookie alla Revoca
 **Requisito**: I cookie devono essere rimossi quando l'utente revoca il consenso.
 
 **Implementazione**: Rimozione automatica dei cookie quando il consenso viene revocato.
@@ -162,10 +174,37 @@ Prima di mettere in produzione, verifica che:
 ## Domande Frequenti
 
 ### Q: Devo avere un backend per il logging dei consensi?
-**A**: No, non è obbligatorio. Il consenso è già salvato localmente nel browser dell'utente (localStorage + cookie). Il backend è utile per:
-- Statistiche aggregate sui consensi
-- Compliance con eventuali requisiti interni
-- Audit trail per dimostrare la conformità
+**A**: No, non è obbligatorio per il funzionamento tecnico. Il consenso è già salvato localmente nel browser dell'utente (localStorage + cookie). 
+
+**PERÒ, per la piena conformità GDPR Art. 7(1) è FORTEMENTE RACCOMANDATO** avere un backend che:
+- Salva il **timestamp** del consenso
+- Salva **quali categorie** sono state accettate/rifiutate (necessary, analytics, marketing, preferences)
+- Salva la **versione della policy** accettata
+- Mantiene un **audit trail** per dimostrare la conformità
+
+**Esempio di log completo GDPR-compliant:**
+```json
+{
+  "siteId": "PAM",
+  "categories": {
+    "necessary": true,
+    "analytics": true,
+    "marketing": false,
+    "preferences": false
+  },
+  "timestamp": "2026-02-06T15:39:41.195Z",
+  "version": "1.0",
+  "ipHash": "536ed9cd984b7c79",
+  "userAgent": "Mozilla/5.0...",
+  "serverTimestamp": "2026-02-06T15:39:41.200Z"
+}
+```
+
+Questo dimostra:
+- ✅ **Quale** consenso è stato dato (quali categorie)
+- ✅ **Quando** è stato dato (timestamp)
+- ✅ **A quale versione** della policy (version)
+- ✅ **Chi** lo ha dato (ipHash pseudonimizzato)
 
 ### Q: Quanto deve durare il consenso?
 **A**: L'EDPB (European Data Protection Board) raccomanda un massimo di 12 mesi. Questa CMP è configurata per 365 giorni.
