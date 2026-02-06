@@ -6,24 +6,26 @@
     <title>Test GDPR Compliance - OpenConsent v2</title>
     
     <!-- OpenConsent v2 CMP with Policy URLs -->
-    <script src="dist/cmp-js.min.js" data-site-id="gdpr-test"></script>
+    <script src="dist/cmp-js.min.js" data-site-id="gdpr-test" data-auto-init="false"></script>
     <script>
         // Initialize with Privacy and Cookie Policy URLs
-        window.RSCMP.init({
-            siteId: 'gdpr-test',
-            language: 'it', // Italian for user's request
-            config: {
-                banner: {
-                    position: 'bottom',
-                    layout: 'bar',
-                    primaryColor: '#2563eb',
-                    backgroundColor: '#ffffff',
-                    textColor: '#1f2937',
-                    buttonTextColor: '#ffffff',
-                    // GDPR Compliance: Add policy URLs
-                    privacyPolicyUrl: 'https://example.com/privacy-policy',
-                    cookiePolicyUrl: 'https://example.com/cookie-policy'
-                },
+        // Wait for DOM to ensure proper initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            window.RSCMP.init({
+                siteId: 'gdpr-test',
+                language: 'it', // Italian for user's request
+                config: {
+                    banner: {
+                        position: 'bottom',
+                        layout: 'bar',
+                        primaryColor: '#2563eb',
+                        backgroundColor: '#ffffff',
+                        textColor: '#1f2937',
+                        buttonTextColor: '#ffffff',
+                        // GDPR Compliance: Add policy URLs
+                        privacyPolicyUrl: 'https://example.com/privacy-policy',
+                        cookiePolicyUrl: 'https://example.com/cookie-policy'
+                    },
                 categories: [
                     {
                         id: 'necessary',
@@ -61,6 +63,7 @@
             console.log('   - Privacy Policy: https://example.com/privacy-policy');
             console.log('   - Cookie Policy: https://example.com/cookie-policy');
         });
+    });
     </script>
     
     <style>
