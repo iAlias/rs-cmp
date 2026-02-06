@@ -69,6 +69,13 @@ The free, open-source alternative to Cookiebot, OneTrust, and Iubenda. Perfect f
     window.RSCMP.init({
       siteId: 'YOUR_SITE_ID',  // ⚠️ CHANGE THIS to your unique site ID
       // apiUrl: 'https://your-api-server.com'  // Optional: for backend logging
+      config: {
+        banner: {
+          // ⚠️ GDPR Compliance: Add your policy URLs
+          privacyPolicyUrl: 'https://yoursite.com/privacy-policy',
+          cookiePolicyUrl: 'https://yoursite.com/cookie-policy'
+        }
+      }
     }).then(() => console.log('✅ CMP ready!'));
   </script>
   
@@ -390,7 +397,9 @@ Default configuration includes:
     "backgroundColor": "#ffffff",
     "textColor": "#1f2937",
     "buttonTextColor": "#ffffff",
-    "showLogo": false
+    "showLogo": false,
+    "privacyPolicyUrl": "https://yoursite.com/privacy",
+    "cookiePolicyUrl": "https://yoursite.com/cookies"
   },
   "categories": [
     {
@@ -420,6 +429,8 @@ Default configuration includes:
   ]
 }
 ```
+
+**⚠️ IMPORTANT for GDPR Compliance**: Always set `privacyPolicyUrl` and `cookiePolicyUrl` in your configuration. These links will appear in the consent banner, allowing users to read detailed information about data processing before giving consent (required by GDPR Art. 13).
 
 ### 🌍 Supported Languages
 
