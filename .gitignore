@@ -9,6 +9,7 @@ coverage/
 *.swo
 .cache/
 tmp/
+dist/cmp-js.js
 demo.html
 test-double-load.html
 test-api-fallback.html

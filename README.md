@@ -470,7 +470,6 @@ More languages can be added in the site configuration.
 - [ ] Multi-domain support
 - [ ] White-label options
 - [ ] Advanced analytics dashboard
-- [ ] Cookie scanner service
 - [ ] Privacy policy generator
 
 ### 📄 License
