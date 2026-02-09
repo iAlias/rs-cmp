@@ -1664,6 +1664,7 @@ class BannerUI {
  * @property {boolean} isFirstParty - Whether cookie is first-party
  * @property {string} category - Detected category (necessary, analytics, marketing, preferences)
  * @property {number} detectedAt - Timestamp when detected
+ * @property {'client' | 'server'} source - How the cookie was detected: 'client' via document.cookie, 'server' via backend Set-Cookie header inspection
  */
 
 class CookieScanner {
@@ -1873,7 +1874,8 @@ class CookieScanner {
         expires: null, // Not available from document.cookie
         isFirstParty: isFirstParty,
         category: category,
-        detectedAt: Date.now()
+        detectedAt: Date.now(),
+        source: 'client'
       };
       
       cookies.push(detectedCookie);
@@ -1943,6 +1945,8 @@ class CookieScanner {
       timestamp: new Date().toISOString(),
       domain: this.currentDomain,
       totalCookies: cookies.length,
+      clientDetected: cookies.filter(c => c.source === 'client').length,
+      serverDetected: cookies.filter(c => c.source === 'server').length,
       firstPartyCookies: cookies.filter(c => c.isFirstParty).length,
       thirdPartyCookies: cookies.filter(c => !c.isFirstParty).length,
       categories: {
@@ -1956,6 +1960,8 @@ class CookieScanner {
         domain: cookie.domain,
         category: cookie.category,
         isFirstParty: cookie.isFirstParty,
+        httpOnly: cookie.httpOnly,
+        source: cookie.source,
         detectedAt: cookie.detectedAt
       }))
     };
@@ -2051,6 +2057,142 @@ class CookieScanner {
   clear() {
     this.detectedCookies.clear();
   }
+
+  /**
+   * Merge server-detected cookies into the detected cookies map.
+   * Server-detected cookies include HttpOnly cookies, cookies set by redirects,
+   * initial async requests, and CDN/pixel server-side cookies that are invisible
+   * to client-side JavaScript.
+   * @param {DetectedCookie[]} serverCookies - Cookies detected by the server
+   * @returns {void}
+   */
+  mergeServerCookies(serverCookies) {
+    for (const cookie of serverCookies) {
+      const existing = this.detectedCookies.get(cookie.name);
+      // Server data takes priority for httpOnly/secure/sameSite/expires since
+      // the server can read Set-Cookie headers accurately
+      if (!existing || existing.source === 'client') {
+        const category = cookie.category || this.categorizeCookie(cookie.name);
+        this.detectedCookies.set(cookie.name, {
+          name: cookie.name,
+          value: cookie.httpOnly ? '[redacted]' : (cookie.value || (existing ? existing.value : '')),
+          domain: cookie.domain || (existing ? existing.domain : (this.currentDomain || '')),
+          path: cookie.path || (existing ? existing.path : '/'),
+          secure: cookie.secure != null ? cookie.secure : (existing ? existing.secure : null),
+          httpOnly: cookie.httpOnly != null ? cookie.httpOnly : false,
+          sameSite: cookie.sameSite || (existing ? existing.sameSite : 'Lax'),
+          expires: cookie.expires || (existing ? existing.expires : null),
+          isFirstParty: cookie.isFirstParty != null ? cookie.isFirstParty : this.isFirstPartyCookie(cookie.domain),
+          category: category,
+          detectedAt: cookie.detectedAt || Date.now(),
+          source: 'server'
+        });
+      }
+    }
+    console.log(`[CookieScanner] Merged ${serverCookies.length} server-detected cookies`);
+  }
+}
+
+// ============================================================================
+// SERVER COOKIE COLLECTOR
+// ============================================================================
+
+/**
+ * ServerCookieCollector fetches cookie data detected server-side.
+ * This complements the client-side CookieScanner by providing visibility into:
+ * - HttpOnly cookies (not accessible via document.cookie)
+ * - Cookies set by redirects (302/301 Set-Cookie headers)
+ * - Cookies set by initial async requests (before SDK loads)
+ * - Cookies set by CDN or server-side pixels
+ */
+class ServerCookieCollector {
+  /**
+   * @param {string | null} apiUrl - Backend API URL
+   * @param {string | null} siteId - Site identifier
+   */
+  constructor(apiUrl, siteId) {
+    /** @type {string | null} */
+    this.apiUrl = apiUrl;
+    /** @type {string | null} */
+    this.siteId = siteId;
+    /** @type {boolean} */
+    this.enabled = !!(apiUrl && siteId);
+  }
+
+  /**
+   * Update configuration (called when RSCMP finishes initialization)
+   * @param {string} apiUrl - Backend API URL
+   * @param {string} siteId - Site identifier
+   * @returns {void}
+   */
+  configure(apiUrl, siteId) {
+    this.apiUrl = apiUrl;
+    this.siteId = siteId;
+    this.enabled = !!(apiUrl && siteId);
+  }
+
+  /**
+   * Fetch server-detected cookies from the backend.
+   * The backend endpoint inspects Set-Cookie headers from upstream responses
+   * and returns cookies that are not visible to client-side JavaScript.
+   * @returns {Promise<DetectedCookie[]>} Array of server-detected cookies
+   */
+  async fetchServerCookies() {
+    if (!this.enabled) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(
+        `${this.apiUrl}/v1/site/${this.siteId}/server-cookies`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin'
+        }
+      );
+
+      if (!response.ok) {
+        console.warn(`[ServerCookieCollector] Endpoint returned ${response.status}, server-side cookie detection not available`);
+        return [];
+      }
+
+      const data = await response.json();
+      return Array.isArray(data.cookies) ? data.cookies : [];
+    } catch (error) {
+      // Server-side detection is optional; log and continue silently
+      console.warn('[ServerCookieCollector] Server-side cookie detection not available:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Report client-observed Set-Cookie headers from navigation responses.
+   * Browsers expose some response headers for same-origin requests.
+   * @param {string} url - The URL that was requested
+   * @param {Object[]} cookies - Parsed cookie objects from response headers
+   * @returns {Promise<void>}
+   */
+  async reportObservedCookies(url, cookies) {
+    if (!this.enabled || !cookies || cookies.length === 0) {
+      return;
+    }
+
+    try {
+      await fetch(`${this.apiUrl}/v1/site/${this.siteId}/server-cookies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: this.siteId,
+          url: url,
+          cookies: cookies,
+          timestamp: new Date().toISOString()
+        })
+      });
+    } catch (error) {
+      console.warn('[ServerCookieCollector] Failed to report cookies:', error.message);
+    }
+  }
 }
 
 // ============================================================================
@@ -2065,6 +2207,8 @@ class RSCMP {
     this.consentManager = new ConsentManager(this.consentStorage);
     /** @type {CookieScanner} */
     this.cookieScanner = new CookieScanner();
+    /** @type {ServerCookieCollector} */
+    this.serverCookieCollector = new ServerCookieCollector(null, null);
     /** @type {ScriptBlocker} */
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     /** @type {BannerUI} */
@@ -2105,6 +2249,21 @@ class RSCMP {
       } else {
         // Use default configuration
         this.config = this.getDefaultConfig();
+      }
+
+      // Configure server-side cookie collector (detects HttpOnly, redirect,
+      // async, and CDN/pixel cookies invisible to client-side JS)
+      const apiUrl = this.getApiUrl();
+      if (this.siteId) {
+        this.serverCookieCollector.configure(apiUrl, this.siteId);
+        // Fetch server-detected cookies and merge into scanner (non-blocking)
+        this.serverCookieCollector.fetchServerCookies().then((serverCookies) => {
+          if (serverCookies.length > 0) {
+            this.cookieScanner.mergeServerCookies(serverCookies);
+          }
+        }).catch((err) => {
+          console.warn('[RS-CMP] Server-side cookie detection skipped:', err.message);
+        });
       }
       
       // Check if consent already exists
@@ -2341,6 +2500,26 @@ class RSCMP {
   }
 
   /**
+   * Get only server-detected cookies (HttpOnly, redirect, async, CDN/pixel)
+   * @returns {DetectedCookie[]} Array of server-detected cookies
+   */
+  getServerDetectedCookies() {
+    return this.cookieScanner.getAllCookies().filter(c => c.source === 'server');
+  }
+
+  /**
+   * Manually trigger server-side cookie fetch and merge
+   * @returns {Promise<DetectedCookie[]>} Array of server-detected cookies
+   */
+  async fetchServerCookies() {
+    const serverCookies = await this.serverCookieCollector.fetchServerCookies();
+    if (serverCookies.length > 0) {
+      this.cookieScanner.mergeServerCookies(serverCookies);
+    }
+    return serverCookies;
+  }
+
+  /**
    * Send cookie report to backend
    * @returns {Promise<void>}
    */
@@ -2362,13 +2541,16 @@ class RSCMP {
    * @returns {Object} Status information
    */
   getStatus() {
+    const allCookies = this.cookieScanner.getAllCookies();
     return {
       initialized: !!this.config,
       siteId: this.siteId,
       consent: this.consentManager.getConsent(),
       blockedScripts: this.scriptBlocker.blockedScripts.length,
       bannerVisible: !!this.bannerUI.bannerElement,
-      detectedCookies: this.cookieScanner.getAllCookies().length,
+      detectedCookies: allCookies.length,
+      clientDetectedCookies: allCookies.filter(c => c.source === 'client').length,
+      serverDetectedCookies: allCookies.filter(c => c.source === 'server').length,
       cookieCategories: {
         necessary: this.cookieScanner.getCookiesByCategory('necessary').length,
         analytics: this.cookieScanner.getCookiesByCategory('analytics').length,

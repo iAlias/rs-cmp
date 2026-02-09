@@ -33,10 +33,13 @@ node node-logger.js
 - ✅ JSONL file logging (easy to parse)
 - ✅ Commented examples for MongoDB and PostgreSQL
 - ✅ CORS support
+- ✅ Server-side cookie detection (HttpOnly, redirects, CDN/pixel)
 
-**Endpoint:**
+**Endpoints:**
 ```
 POST http://localhost:3000/v1/consent
+GET  http://localhost:3000/v1/site/:siteId/server-cookies
+POST http://localhost:3000/v1/site/:siteId/server-cookies
 ```
 
 ---
@@ -66,10 +69,13 @@ php -S localhost:8000 php-logger.php
 - ✅ JSONL file logging
 - ✅ Commented examples for MySQL and SQLite
 - ✅ CORS support
+- ✅ Server-side cookie detection (HttpOnly, redirects, CDN/pixel)
 
-**Endpoint:**
+**Endpoints:**
 ```
 POST http://localhost:8000/php-logger.php
+GET  http://localhost:8000/php-logger.php?action=server-cookies&siteId=your-site-id
+POST http://localhost:8000/php-logger.php?action=server-cookies&siteId=your-site-id
 ```
 
 ---
@@ -118,6 +124,105 @@ window.RSCMP.init({
 Open your browser's developer console and check for:
 ```
 ✅ Consent logged: { siteId: '...', ipHash: '...', timestamp: '...' }
+```
+
+---
+
+## 🍪 Server-Side Cookie Detection
+
+The client-side SDK can read cookies via `document.cookie`, but it **cannot** detect:
+
+- **HttpOnly cookies** – not accessible via JavaScript by definition
+- **Cookies set by redirects** – set via `Set-Cookie` headers during 301/302 redirects
+- **Cookies set by initial async requests** – set before the SDK loads
+- **Cookies set by CDN or server-side pixels** – set at the network level
+
+Both backend examples include endpoints for **server-side cookie detection** that complement the client-side scanner.
+
+### How It Works
+
+1. **Your server/proxy/middleware** intercepts `Set-Cookie` headers from upstream responses (redirects, CDN, pixels, etc.)
+2. **Reports them** to the `POST /v1/site/:siteId/server-cookies` endpoint
+3. **The CMP SDK** fetches these server-detected cookies via `GET /v1/site/:siteId/server-cookies` during initialization
+4. **Merges** them with client-detected cookies, providing a complete picture
+
+### Reporting Server-Detected Cookies
+
+**From a reverse proxy (e.g., nginx, Express middleware):**
+
+```javascript
+// Express middleware example: intercept Set-Cookie headers from upstream
+app.use((req, res, next) => {
+  const originalSetHeader = res.setHeader.bind(res);
+  res.setHeader = function(name, value) {
+    if (name.toLowerCase() === 'set-cookie') {
+      const cookies = Array.isArray(value) ? value : [value];
+      // Report to CMP backend (fire and forget)
+      fetch('http://localhost:3000/v1/site/your-site-id/server-cookies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: 'your-site-id',
+          url: req.protocol + '://' + req.get('host') + req.originalUrl,
+          cookies: cookies.map(h => ({ header: h }))
+        })
+      }).catch(() => {});
+    }
+    return originalSetHeader(name, value);
+  };
+  next();
+});
+```
+
+### Retrieving Server-Detected Cookies
+
+The SDK does this automatically when `siteId` and `apiUrl` are configured. You can also fetch them manually:
+
+```javascript
+// Automatic (during SDK init)
+window.RSCMP.init({ siteId: 'your-site-id' });
+
+// Manual fetch
+const serverCookies = await window.RSCMP.fetchServerCookies();
+console.log('Server-detected cookies:', serverCookies);
+
+// Get all server-detected cookies from cache
+const cached = window.RSCMP.getServerDetectedCookies();
+```
+
+### API Reference
+
+**POST `/v1/site/:siteId/server-cookies`** – Report detected cookies
+
+```json
+{
+  "siteId": "your-site-id",
+  "url": "https://example.com/page",
+  "cookies": [
+    { "header": "session_id=abc123; Path=/; HttpOnly; Secure; SameSite=Strict" },
+    { "header": "_ga=GA1.2.123456; Domain=.example.com; Path=/; Expires=Thu, 01 Jan 2028 00:00:00 GMT" }
+  ]
+}
+```
+
+**GET `/v1/site/:siteId/server-cookies`** – Retrieve detected cookies
+
+```json
+{
+  "status": "ok",
+  "siteId": "your-site-id",
+  "cookies": [
+    {
+      "name": "session_id",
+      "domain": "example.com",
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict",
+      "source": "server",
+      "category": "necessary"
+    }
+  ]
+}
 ```
 
 ---
