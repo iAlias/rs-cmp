@@ -1103,8 +1103,8 @@ class BannerUI {
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
 
-    const primaryColor = this.config.banner.primaryColor || '#0084ff';
-    const buttonTextColor = this.config.banner.buttonTextColor || '#ffffff';
+    const primaryColor = this.sanitizeColor(this.config.banner.primaryColor, '#0084ff');
+    const buttonTextColor = this.sanitizeColor(this.config.banner.buttonTextColor, '#ffffff');
 
     // Get current consent to populate checkboxes
     const currentConsent = this.consentManager.getConsent();
@@ -1114,7 +1114,7 @@ class BannerUI {
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-label', translations.customizeTitle || translations.customize);
     
-    const cookiePolicyUrl = this.config.banner.cookiePolicyUrl || '';
+    const cookiePolicyUrl = this.sanitizeUrl(this.config.banner.cookiePolicyUrl);
 
     modal.innerHTML = `
       <div class="rs-cmp-modal-overlay"></div>
@@ -1145,7 +1145,7 @@ class BannerUI {
           `;
           }).join('')}
         </div>
-        ${cookiePolicyUrl && translations.viewCookiePolicy ? `<div class="rs-cmp-modal-policy-link"><a href="${this.escapeHtml(cookiePolicyUrl)}" target="_blank" rel="noopener noreferrer" class="rs-cmp-btn rs-cmp-btn-view-policy">${this.escapeHtml(translations.viewCookiePolicy)}</a></div>` : ''}
+        ${cookiePolicyUrl && translations.viewCookiePolicy ? `<div class="rs-cmp-modal-policy-link"><a href="${cookiePolicyUrl}" target="_blank" rel="noopener noreferrer" class="rs-cmp-btn rs-cmp-btn-view-policy">${this.escapeHtml(translations.viewCookiePolicy)}</a></div>` : ''}
         <div class="rs-cmp-modal-buttons">
           <button class="rs-cmp-btn rs-cmp-btn-accept" id="rs-cmp-save-preferences">
             ${this.escapeHtml(translations.save)}
@@ -1448,6 +1448,37 @@ class BannerUI {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Sanitize a URL to prevent javascript: or data: URI injection
+   * @private
+   * @param {string} url - URL to sanitize
+   * @returns {string} Sanitized URL or empty string if invalid
+   */
+  sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+      return this.escapeHtml(trimmed);
+    }
+    return '';
+  }
+
+  /**
+   * Sanitize a CSS color value to prevent CSS injection
+   * @private
+   * @param {string} color - Color value to sanitize
+   * @param {string} fallback - Fallback color
+   * @returns {string} Sanitized color value
+   */
+  sanitizeColor(color, fallback) {
+    if (!color || typeof color !== 'string') return fallback;
+    // Allow hex colors, named colors, rgb/rgba, hsl/hsla
+    if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(color)) return color;
+    if (/^[a-zA-Z]+$/.test(color)) return color;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9,.\s%]+\)$/.test(color)) return color;
+    return fallback;
   }
 }
 
@@ -1815,7 +1846,10 @@ class RSCMP {
       return; // Already shown
     }
 
-    const primaryColor = this.config && this.config.banner ? this.config.banner.primaryColor : '#0084ff';
+    const primaryColor = this.bannerUI.sanitizeColor(
+      this.config && this.config.banner ? this.config.banner.primaryColor : '#0084ff',
+      '#0084ff'
+    );
 
     // Create button
     const button = document.createElement('button');
