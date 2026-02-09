@@ -1516,8 +1516,8 @@ class BannerUI {
       { pattern: /^(ai_session|ai_user)$/, provider: 'Azure Application Insights' },
       { pattern: /^(MUID|ANONCHK|SRM_B)$/, provider: 'Microsoft' },
       { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
-      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID|ASP\.NET_Sessionld)/, provider: 'ASP.NET' },
-      { pattern: /^(\.ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
+      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID|ASP\.NET_SessionId)/, provider: 'ASP.NET' },
+      { pattern: /^(\.?ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
       { pattern: /^(cityidc_|CNC_PSIC)/, provider: 'Store Selection' },
       { pattern: /(session|SESS)/i, provider: 'Session Management' },
       { pattern: /(csrf|XSRF)/i, provider: 'Security' },
@@ -1778,10 +1778,11 @@ class CookieScanner {
       'PHPSESSID': 'necessary',
       'JSESSIONID': 'necessary',
       'ASPSESSIONID': 'necessary',
-      'ASP.NET_Sessionld': 'necessary', // ASP.NET session (note: typo in original but keeping as-is)
+      'ASP.NET_SessionId': 'necessary', // ASP.NET session
       '.ASPXANONYMOUS': 'necessary', // ASP.NET anonymous
       'ASP.NET_ID': 'necessary', // ASP.NET session
-      '.ARRAffinity': 'necessary', // Azure affinity
+      '.ARRAffinity': 'necessary', // Azure affinity (with dot prefix)
+      'ARRAffinity': 'necessary', // Azure affinity
       'ARRAffinitySameSite': 'necessary', // Azure affinity SameSite
       'session': 'necessary',
       'csrf': 'necessary',
