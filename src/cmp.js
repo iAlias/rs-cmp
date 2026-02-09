@@ -2075,7 +2075,7 @@ class CookieScanner {
         const category = cookie.category || this.categorizeCookie(cookie.name);
         this.detectedCookies.set(cookie.name, {
           name: cookie.name,
-          value: cookie.httpOnly ? '[httpOnly]' : (cookie.value || (existing ? existing.value : '')),
+          value: cookie.httpOnly ? '[redacted]' : (cookie.value || (existing ? existing.value : '')),
           domain: cookie.domain || (existing ? existing.domain : (this.currentDomain || '')),
           path: cookie.path || (existing ? existing.path : '/'),
           secure: cookie.secure != null ? cookie.secure : (existing ? existing.secure : null),

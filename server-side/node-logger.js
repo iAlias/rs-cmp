@@ -352,7 +352,14 @@ app.post('/v1/site/:siteId/server-cookies', (req, res) => {
   }
   
   let processedCount = 0;
-  const requestDomain = url ? new URL(url).hostname : '';
+  let requestDomain = '';
+  if (url) {
+    try {
+      requestDomain = new URL(url).hostname;
+    } catch (_e) {
+      requestDomain = '';
+    }
+  }
   
   for (const cookieData of cookies) {
     let parsed;
