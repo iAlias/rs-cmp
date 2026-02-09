@@ -228,6 +228,210 @@ app.get('/v1/site/:siteId/config', (req, res) => {
   res.json(config);
 });
 
+// ============================================================================
+// SERVER-SIDE COOKIE DETECTION
+// ============================================================================
+
+/**
+ * In-memory store for server-detected cookies per site.
+ * In production, use a database or Redis for persistence.
+ * 
+ * Structure: { [siteId]: { [cookieName]: cookieData } }
+ */
+const serverCookieStore = {};
+
+/**
+ * Parse a Set-Cookie header string into a structured object.
+ * 
+ * @param {string} setCookieHeader - Raw Set-Cookie header value
+ * @param {string} requestDomain - The domain the cookie was received from
+ * @returns {object|null} Parsed cookie data or null if invalid
+ */
+function parseSetCookieHeader(setCookieHeader, requestDomain) {
+  if (!setCookieHeader) return null;
+  
+  const parts = setCookieHeader.split(';').map(p => p.trim());
+  const [nameValue, ...attributes] = parts;
+  
+  if (!nameValue || !nameValue.includes('=')) return null;
+  
+  const eqIndex = nameValue.indexOf('=');
+  const name = nameValue.substring(0, eqIndex).trim();
+  const value = nameValue.substring(eqIndex + 1).trim();
+  
+  if (!name) return null;
+  
+  const cookie = {
+    name,
+    value: '[redacted]', // Don't store actual values for privacy
+    domain: requestDomain || '',
+    path: '/',
+    secure: false,
+    httpOnly: false,
+    sameSite: 'Lax',
+    expires: null,
+    isFirstParty: true,
+    source: 'server',
+    detectedAt: Date.now()
+  };
+  
+  for (const attr of attributes) {
+    const lowerAttr = attr.toLowerCase();
+    
+    if (lowerAttr === 'httponly') {
+      cookie.httpOnly = true;
+    } else if (lowerAttr === 'secure') {
+      cookie.secure = true;
+    } else if (lowerAttr.startsWith('samesite=')) {
+      cookie.sameSite = attr.split('=')[1] || 'Lax';
+    } else if (lowerAttr.startsWith('domain=')) {
+      cookie.domain = attr.split('=')[1] || requestDomain;
+    } else if (lowerAttr.startsWith('path=')) {
+      cookie.path = attr.split('=')[1] || '/';
+    } else if (lowerAttr.startsWith('max-age=')) {
+      const maxAge = parseInt(attr.split('=')[1], 10);
+      if (!isNaN(maxAge)) {
+        cookie.expires = Date.now() + (maxAge * 1000);
+      }
+    } else if (lowerAttr.startsWith('expires=')) {
+      const expiresDate = new Date(attr.substring(attr.indexOf('=') + 1));
+      if (!isNaN(expiresDate.getTime())) {
+        cookie.expires = expiresDate.getTime();
+      }
+    }
+  }
+  
+  return cookie;
+}
+
+/**
+ * POST /v1/site/:siteId/server-cookies
+ * 
+ * Report cookies detected from server-side Set-Cookie headers.
+ * This endpoint is called by:
+ * - A reverse proxy or middleware that intercepts Set-Cookie headers
+ * - The CMP SDK when it observes response headers
+ * 
+ * This allows detection of:
+ * - HttpOnly cookies (invisible to document.cookie)
+ * - Cookies set by 301/302 redirects
+ * - Cookies set by initial async requests (before SDK loads)
+ * - Cookies set by CDN or server-side tracking pixels
+ * 
+ * Request body:
+ * {
+ *   "siteId": "your-site-id",
+ *   "url": "https://example.com/page",
+ *   "cookies": [
+ *     { "header": "session_id=abc123; Path=/; HttpOnly; Secure; SameSite=Strict" }
+ *   ],
+ *   "timestamp": "2026-02-03T17:00:00.000Z"
+ * }
+ * 
+ * Alternative format (pre-parsed cookies):
+ * {
+ *   "siteId": "your-site-id",
+ *   "cookies": [
+ *     { "name": "_ga", "domain": ".example.com", "httpOnly": false, "secure": true, ... }
+ *   ]
+ * }
+ */
+app.post('/v1/site/:siteId/server-cookies', (req, res) => {
+  const { siteId } = req.params;
+  const { cookies, url } = req.body;
+  
+  if (!cookies || !Array.isArray(cookies)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Missing required field: cookies (array)'
+    });
+  }
+  
+  if (!serverCookieStore[siteId]) {
+    serverCookieStore[siteId] = {};
+  }
+  
+  let processedCount = 0;
+  const requestDomain = url ? new URL(url).hostname : '';
+  
+  for (const cookieData of cookies) {
+    let parsed;
+    
+    if (cookieData.header) {
+      // Raw Set-Cookie header string
+      parsed = parseSetCookieHeader(cookieData.header, requestDomain);
+    } else if (cookieData.name) {
+      // Pre-parsed cookie object
+      parsed = {
+        name: cookieData.name,
+        value: '[redacted]',
+        domain: cookieData.domain || requestDomain,
+        path: cookieData.path || '/',
+        secure: cookieData.secure || false,
+        httpOnly: cookieData.httpOnly || false,
+        sameSite: cookieData.sameSite || 'Lax',
+        expires: cookieData.expires || null,
+        isFirstParty: cookieData.isFirstParty != null ? cookieData.isFirstParty : true,
+        source: 'server',
+        detectedAt: Date.now()
+      };
+    }
+    
+    if (parsed) {
+      serverCookieStore[siteId][parsed.name] = parsed;
+      processedCount++;
+    }
+  }
+  
+  console.log(`🍪 Server cookies reported for site ${siteId}: ${processedCount} cookies from ${url || 'unknown URL'}`);
+  
+  res.json({
+    status: 'ok',
+    processed: processedCount,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * GET /v1/site/:siteId/server-cookies
+ * 
+ * Retrieve server-detected cookies for a site.
+ * Called by the CMP SDK to get cookies that are invisible to client-side JS:
+ * - HttpOnly cookies
+ * - Cookies set by redirects
+ * - Cookies set by initial async requests
+ * - Cookies set by CDN or server-side pixels
+ * 
+ * Response:
+ * {
+ *   "status": "ok",
+ *   "siteId": "your-site-id",
+ *   "cookies": [
+ *     {
+ *       "name": "session_id",
+ *       "domain": ".example.com",
+ *       "httpOnly": true,
+ *       "secure": true,
+ *       "sameSite": "Strict",
+ *       "source": "server",
+ *       ...
+ *     }
+ *   ]
+ * }
+ */
+app.get('/v1/site/:siteId/server-cookies', (req, res) => {
+  const { siteId } = req.params;
+  const cookies = serverCookieStore[siteId]
+    ? Object.values(serverCookieStore[siteId])
+    : [];
+  
+  res.json({
+    status: 'ok',
+    siteId: siteId,
+    cookies: cookies
+  });
+});
+
 /**
  * GET /health
  * 
@@ -243,6 +447,7 @@ app.listen(PORT, () => {
   console.log('🚀 OpenConsent v2 Logger running on port ' + PORT);
   console.log('📝 Consent logs will be saved to: consent_logs.jsonl');
   console.log('🔗 Endpoint: POST http://localhost:' + PORT + '/v1/consent');
+  console.log('🍪 Endpoint: GET/POST http://localhost:' + PORT + '/v1/site/:siteId/server-cookies');
   console.log('');
   console.log('⚠️  Remember to configure CORS for your production domain!');
 });

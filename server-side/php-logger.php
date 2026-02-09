@@ -76,8 +76,207 @@ function sendResponse($data, $statusCode = 200) {
     exit;
 }
 
+// ============================================================================
+// ROUTING
+// ============================================================================
+
+// Determine the requested action based on query parameter or URI
+$action = $_GET['action'] ?? 'consent';
+$requestMethod = $_SERVER['REQUEST_METHOD'];
+
+// ============================================================================
+// SERVER-SIDE COOKIE DETECTION
+// ============================================================================
+
+/**
+ * Server-detected cookie store file.
+ * In production, use a database for persistence and performance.
+ */
+$serverCookieFile = __DIR__ . '/server_cookies.json';
+
+/**
+ * Parse a Set-Cookie header string into a structured array.
+ *
+ * @param string $setCookieHeader Raw Set-Cookie header value
+ * @param string $requestDomain The domain the cookie was received from
+ * @return array|null Parsed cookie data or null if invalid
+ */
+function parseSetCookieHeader($setCookieHeader, $requestDomain = '') {
+    if (empty($setCookieHeader)) return null;
+
+    $parts = array_map('trim', explode(';', $setCookieHeader));
+    $nameValue = array_shift($parts);
+
+    if (empty($nameValue) || strpos($nameValue, '=') === false) return null;
+
+    $eqPos = strpos($nameValue, '=');
+    $name = trim(substr($nameValue, 0, $eqPos));
+    $value = trim(substr($nameValue, $eqPos + 1));
+
+    if (empty($name)) return null;
+
+    $cookie = [
+        'name' => $name,
+        'value' => '[redacted]',
+        'domain' => $requestDomain,
+        'path' => '/',
+        'secure' => false,
+        'httpOnly' => false,
+        'sameSite' => 'Lax',
+        'expires' => null,
+        'isFirstParty' => true,
+        'source' => 'server',
+        'detectedAt' => round(microtime(true) * 1000)
+    ];
+
+    foreach ($parts as $attr) {
+        $lowerAttr = strtolower($attr);
+
+        if ($lowerAttr === 'httponly') {
+            $cookie['httpOnly'] = true;
+        } elseif ($lowerAttr === 'secure') {
+            $cookie['secure'] = true;
+        } elseif (strpos($lowerAttr, 'samesite=') === 0) {
+            $cookie['sameSite'] = explode('=', $attr, 2)[1] ?? 'Lax';
+        } elseif (strpos($lowerAttr, 'domain=') === 0) {
+            $cookie['domain'] = explode('=', $attr, 2)[1] ?? $requestDomain;
+        } elseif (strpos($lowerAttr, 'path=') === 0) {
+            $cookie['path'] = explode('=', $attr, 2)[1] ?? '/';
+        } elseif (strpos($lowerAttr, 'max-age=') === 0) {
+            $maxAge = intval(explode('=', $attr, 2)[1] ?? 0);
+            $cookie['expires'] = round(microtime(true) * 1000) + ($maxAge * 1000);
+        } elseif (strpos($lowerAttr, 'expires=') === 0) {
+            $expiresStr = substr($attr, strpos($attr, '=') + 1);
+            $expiresTime = strtotime($expiresStr);
+            if ($expiresTime !== false) {
+                $cookie['expires'] = $expiresTime * 1000;
+            }
+        }
+    }
+
+    return $cookie;
+}
+
+/**
+ * Load server cookie store from file
+ *
+ * @param string $file Path to the cookie store file
+ * @return array Cookie store indexed by siteId
+ */
+function loadServerCookieStore($file) {
+    if (!file_exists($file)) return [];
+    $data = json_decode(file_get_contents($file), true);
+    return is_array($data) ? $data : [];
+}
+
+/**
+ * Save server cookie store to file
+ *
+ * @param string $file Path to the cookie store file
+ * @param array $store Cookie store data
+ */
+function saveServerCookieStore($file, $store) {
+    file_put_contents($file, json_encode($store, JSON_PRETTY_PRINT), LOCK_EX);
+}
+
+// ============================================================================
+// HANDLE SERVER-COOKIE ENDPOINTS
+// ============================================================================
+
+if ($action === 'server-cookies') {
+    $siteId = $_GET['siteId'] ?? '';
+
+    if (empty($siteId)) {
+        sendResponse(['status' => 'error', 'message' => 'Missing required parameter: siteId'], 400);
+    }
+
+    if ($requestMethod === 'GET') {
+        // GET: Return server-detected cookies for the site
+        $store = loadServerCookieStore($serverCookieFile);
+        $cookies = isset($store[$siteId]) ? array_values($store[$siteId]) : [];
+
+        sendResponse([
+            'status' => 'ok',
+            'siteId' => $siteId,
+            'cookies' => $cookies
+        ]);
+    } elseif ($requestMethod === 'POST') {
+        // POST: Report server-detected cookies
+        $requestBody = file_get_contents('php://input');
+        $data = json_decode($requestBody, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            sendResponse(['status' => 'error', 'message' => 'Invalid JSON'], 400);
+        }
+
+        if (empty($data['cookies']) || !is_array($data['cookies'])) {
+            sendResponse(['status' => 'error', 'message' => 'Missing required field: cookies (array)'], 400);
+        }
+
+        $store = loadServerCookieStore($serverCookieFile);
+        if (!isset($store[$siteId])) {
+            $store[$siteId] = [];
+        }
+
+        $requestDomain = '';
+        if (!empty($data['url'])) {
+            $parsedUrl = parse_url($data['url']);
+            $requestDomain = $parsedUrl['host'] ?? '';
+        }
+
+        $processedCount = 0;
+        foreach ($data['cookies'] as $cookieData) {
+            $parsed = null;
+
+            if (!empty($cookieData['header'])) {
+                $parsed = parseSetCookieHeader($cookieData['header'], $requestDomain);
+            } elseif (!empty($cookieData['name'])) {
+                $parsed = [
+                    'name' => $cookieData['name'],
+                    'value' => '[redacted]',
+                    'domain' => $cookieData['domain'] ?? $requestDomain,
+                    'path' => $cookieData['path'] ?? '/',
+                    'secure' => $cookieData['secure'] ?? false,
+                    'httpOnly' => $cookieData['httpOnly'] ?? false,
+                    'sameSite' => $cookieData['sameSite'] ?? 'Lax',
+                    'expires' => $cookieData['expires'] ?? null,
+                    'isFirstParty' => $cookieData['isFirstParty'] ?? true,
+                    'source' => 'server',
+                    'detectedAt' => round(microtime(true) * 1000)
+                ];
+            }
+
+            if ($parsed) {
+                $store[$siteId][$parsed['name']] = $parsed;
+                $processedCount++;
+            }
+        }
+
+        saveServerCookieStore($serverCookieFile, $store);
+
+        error_log(sprintf(
+            '🍪 Server cookies reported for site %s: %d cookies from %s',
+            $siteId,
+            $processedCount,
+            $data['url'] ?? 'unknown URL'
+        ));
+
+        sendResponse([
+            'status' => 'ok',
+            'processed' => $processedCount,
+            'timestamp' => date('c')
+        ]);
+    } else {
+        sendResponse(['status' => 'error', 'message' => 'Method not allowed'], 405);
+    }
+}
+
+// ============================================================================
+// HANDLE CONSENT LOGGING (default action)
+// ============================================================================
+
 // Only accept POST requests for logging consent
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if ($requestMethod !== 'POST') {
     sendResponse(['status' => 'error', 'message' => 'Method not allowed'], 405);
 }
 
