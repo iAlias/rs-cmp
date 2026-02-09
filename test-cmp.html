@@ -33,21 +33,6 @@
     button:hover {
       background: #1d4ed8;
     }
-    #cookie-list {
-      margin-top: 15px;
-      padding: 10px;
-      background: #f9f9f9;
-      border-radius: 4px;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    .cookie-item {
-      padding: 5px;
-      margin: 3px 0;
-      background: white;
-      border-left: 3px solid #2563eb;
-      padding-left: 10px;
-    }
   </style>
 </head>
 <body>
@@ -57,14 +42,11 @@
     <h2>Test Cookies Setup</h2>
     <p>This page will set various test cookies to verify the CMP functionality.</p>
     <button onclick="setTestCookies()">Set Test Cookies</button>
-    <button onclick="showCookieList()">Show Detected Cookies</button>
-    <button onclick="showCookiePatterns()">Show Cookie Patterns</button>
     <button onclick="window.RSCMP.showPreferences()">Open Preferences</button>
   </div>
   
   <div class="test-section">
-    <h2>Detected Cookies</h2>
-    <div id="cookie-list"></div>
+    <h2>Test Controls</h2>
   </div>
   
   <!-- Google Analytics simulation -->
@@ -110,58 +92,12 @@
       // Preferences
       document.cookie = "S=test_s_value; path=/";
       
-      alert('Test cookies set! Click "Show Detected Cookies" to see them.');
-      
-      // Rescan cookies
-      window.RSCMP.cookieScanner.performInitialScan();
-    }
-    
-    function showCookieList() {
-      const cookies = window.RSCMP.getDetectedCookies();
-      const container = document.getElementById('cookie-list');
-      
-      if (cookies.length === 0) {
-        container.innerHTML = '<p>No cookies detected. Click "Set Test Cookies" first.</p>';
-        return;
-      }
-      
-      // Group by category
-      const grouped = {
-        necessary: [],
-        analytics: [],
-        marketing: [],
-        preferences: []
-      };
-      
-      cookies.forEach(cookie => {
-        grouped[cookie.category].push(cookie);
-      });
-      
-      let html = '<h3>Total Cookies: ' + cookies.length + '</h3>';
-      
-      for (const [category, cookieList] of Object.entries(grouped)) {
-        if (cookieList.length > 0) {
-          html += '<h4>' + category.toUpperCase() + ' (' + cookieList.length + ')</h4>';
-          cookieList.forEach(cookie => {
-            html += '<div class="cookie-item"><strong>' + cookie.name + '</strong> - ' + cookie.category + '</div>';
-          });
-        }
-      }
-      
-      container.innerHTML = html;
-    }
-    
-    function showCookiePatterns() {
-      const patterns = window.RSCMP.cookieScanner.cookiePatterns;
-      console.log('Cookie Patterns:', patterns);
-      alert('Cookie patterns logged to console. Check the console to see all ' + Object.keys(patterns).length + ' patterns.');
+      alert('Test cookies set!');
     }
     
     // Initialize CMP
     window.RSCMP.init().then(() => {
       console.log('[Test] CMP initialized');
-      console.log('[Test] Cookie Scanner:', window.RSCMP.cookieScanner);
-      console.log('[Test] Cookie Patterns:', window.RSCMP.cookieScanner.cookiePatterns);
       
       // Set test cookies after a short delay
       setTimeout(() => {

@@ -741,14 +741,11 @@ class GoogleConsentMode {
 class BannerUI {
   /**
    * @param {ConsentManager} consentManager - Consent manager instance
-   * @param {CookieScanner} cookieScanner - Cookie scanner instance
    * @param {ScriptBlocker} scriptBlocker - Script blocker instance
    */
-  constructor(consentManager, cookieScanner, scriptBlocker) {
+  constructor(consentManager, scriptBlocker) {
     /** @type {ConsentManager} */
     this.consentManager = consentManager;
-    /** @type {CookieScanner} */
-    this.cookieScanner = cookieScanner;
     /** @type {ScriptBlocker} */
     this.scriptBlocker = scriptBlocker;
     /** @type {HTMLElement | null} */
@@ -1103,9 +1100,6 @@ class BannerUI {
   showCustomizeModal() {
     if (!this.config) return;
 
-    // Refresh cookie scan before showing modal to get latest cookies
-    this.cookieScanner.performInitialScan();
-
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
 
@@ -1127,28 +1121,18 @@ class BannerUI {
             const isChecked = cat.required || (currentConsent && currentConsent[cat.id]) || false;
             return `
             <div class="rs-cmp-category">
-              <div class="rs-cmp-category-header">
-                <label>
-                  <input 
-                    type="checkbox" 
-                    name="${cat.id}" 
-                    ${cat.required ? 'checked disabled' : ''}
-                    ${isChecked ? 'checked' : ''}
-                  />
-                  <div>
-                    <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
-                    <p>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].description : cat.description)}</p>
-                  </div>
-                </label>
-                <button 
-                  class="rs-cmp-toggle-details" 
-                  onclick="this.parentElement.nextElementSibling.classList.toggle('rs-cmp-hidden')"
-                  aria-label="Show details"
-                >
-                  ▼
-                </button>
-              </div>
-              ${this.getServicesForCategory(cat.id)}
+              <label>
+                <input 
+                  type="checkbox" 
+                  name="${cat.id}" 
+                  ${cat.required ? 'checked disabled' : ''}
+                  ${isChecked ? 'checked' : ''}
+                />
+                <div>
+                  <strong>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].name : cat.name)}</strong>
+                  <p>${this.escapeHtml(translations.categories[cat.id] ? translations.categories[cat.id].description : cat.description)}</p>
+                </div>
+              </label>
             </div>
           `;
           }).join('')}
@@ -1276,49 +1260,6 @@ class BannerUI {
           color: #4a5568;
         }
         
-        .rs-cmp-hidden {
-          display: none !important;
-        }
-        
-        .rs-cmp-category-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-        }
-        
-        .rs-cmp-toggle-details {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          font-size: 12px;
-          padding: 4px 8px;
-        }
-        
-        .rs-cmp-category-services {
-          margin-top: 12px;
-          padding: 12px;
-          background: #f5f5f5;
-          border-radius: 4px;
-          font-size: 12px;
-        }
-        
-        .rs-cmp-services-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        
-        .rs-cmp-services-table th,
-        .rs-cmp-services-table td {
-          padding: 6px 8px;
-          text-align: left;
-          border-bottom: 1px solid #ddd;
-        }
-        
-        .rs-cmp-services-table th {
-          font-weight: 600;
-          background: #e9e9e9;
-        }
-        
         .rs-cmp-modal-buttons {
           display: flex;
           gap: 12px;
@@ -1434,197 +1375,6 @@ class BannerUI {
   }
 
   /**
-   * Get services for a specific category
-   * @param {string} categoryId - Category identifier
-   * @returns {string} HTML for category services
-   */
-  getServicesForCategory(categoryId) {
-    // Get cookies from the cookie scanner for this category
-    const cookies = this.cookieScanner?.getCookiesByCategory(categoryId) || [];
-    
-    // Get blocked scripts for this category
-    const blockedScripts = this.scriptBlocker?.getBlockedScriptsByCategory(categoryId) || [];
-    
-    // If no cookies and no blocked scripts detected, show a message
-    if (cookies.length === 0 && blockedScripts.length === 0) {
-      return `
-        <div class="rs-cmp-category-services rs-cmp-hidden">
-          <p class="rs-cmp-no-cookies">No cookies or scripts detected for this category.</p>
-        </div>
-      `;
-    }
-    
-    // Group cookies by a friendly name/provider (infer from cookie name)
-    const services = this.groupCookiesIntoServices(cookies);
-    
-    // Add services from blocked scripts
-    const scriptServices = this.getServicesFromBlockedScripts(blockedScripts);
-    
-    // Merge services, avoiding duplicates by provider
-    const allServices = [...services];
-    scriptServices.forEach(scriptService => {
-      // Only add if we don't already have this provider from cookies
-      const exists = allServices.some(s => s.provider === scriptService.provider);
-      if (!exists) {
-        allServices.push(scriptService);
-      }
-    });
-    
-    return `
-      <div class="rs-cmp-category-services rs-cmp-hidden">
-        <table class="rs-cmp-services-table">
-          <thead>
-            <tr>
-              <th>Cookie Name</th>
-              <th>Provider</th>
-              <th>Origin</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${allServices.map(s => `
-              <tr>
-                <td>${this.escapeHtml(s.name)}</td>
-                <td>${this.escapeHtml(s.provider)}</td>
-                <td>${this.escapeHtml(s.origin)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /**
-   * Group cookies into services with friendly names
-   * @param {DetectedCookie[]} cookies - Array of detected cookies
-   * @returns {Array<{name: string, provider: string, origin: string}>}
-   */
-  groupCookiesIntoServices(cookies) {
-    // Provider detection patterns
-    const providerPatterns = [
-      { pattern: /^_g(a|id|at|ac)/, provider: 'Google Analytics' },
-      { pattern: /^_gcl_au$/, provider: 'Google Tag Manager' },
-      { pattern: /^_gcl/, provider: 'Google Ads' },
-      { pattern: /^_dc_gtm_/, provider: 'Google Tag Manager' },
-      { pattern: /^(AEC|ADS_VISITOR_ID|ps_l)$/, provider: 'Google Ads' },
-      { pattern: /^(APISID|SAPISID|HSID|SID|SSID|SIDCC|__Secure-3PAPISID|__Secure-3PSID|__Secure-3PSIDTS|__Secure-BUCKET|Secure-ENID|SEARCH_SAMESITE)$/, provider: 'Google' },
-      { pattern: /^NID$/, provider: 'Google' },
-      { pattern: /^S$/, provider: 'Generic Marketing' },
-      { pattern: /^(_fbp|_fbc|_fr|^fr|^wd)$/, provider: 'Meta (Facebook)' },
-      { pattern: /^_hj/, provider: 'Hotjar' },
-      { pattern: /^(_clck|_clsk|CLID|SM)$/, provider: 'Microsoft Clarity' },
-      { pattern: /^(ai_session|ai_user)$/, provider: 'Azure Application Insights' },
-      { pattern: /^(MUID|ANONCHK|SRM_B)$/, provider: 'Microsoft' },
-      { pattern: /^(_ttp|__ttd)/, provider: 'TikTok' },
-      { pattern: /^(\.ASPXANONYMOUS|ASP\.NET_ID|ASP\.NET_SessionId)/, provider: 'ASP.NET' },
-      { pattern: /^(\.?ARRAffinity|ARRAffinitySameSite)/, provider: 'Azure' },
-      { pattern: /^(cityidc_|CNC_PSIC)/, provider: 'Store Selection' },
-      { pattern: /(session|SESS)/i, provider: 'Session Management' },
-      { pattern: /(csrf|XSRF)/i, provider: 'Security' },
-      { pattern: /^rs-cmp-consent$/, provider: 'Consent Management' }
-    ];
-    
-    return cookies.map(cookie => {
-      let provider = 'Unknown';
-      
-      // Check against provider patterns
-      for (const { pattern, provider: providerName } of providerPatterns) {
-        if (pattern.test(cookie.name)) {
-          provider = providerName;
-          break;
-        }
-      }
-      
-      // Fallback to first-party/third-party if no specific provider found
-      if (provider === 'Unknown') {
-        provider = cookie.isFirstParty ? 'First-party' : 'Third-party';
-      }
-      
-      const origin = cookie.isFirstParty ? 'First-party' : 'Third-party';
-      
-      return {
-        name: cookie.name,
-        provider: provider,
-        origin: origin
-      };
-    });
-  }
-
-  /**
-   * Get services from blocked scripts
-   * @param {Array<HTMLScriptElement>} scripts - Array of blocked script elements
-   * @returns {Array<{name: string, provider: string, origin: string}>}
-   */
-  getServicesFromBlockedScripts(scripts) {
-    const services = [];
-    const seenProviders = new Set();
-    
-    // Provider detection patterns - can be extended easily
-    const providerPatterns = [
-      { patterns: ['googleadservices.com', 'googlesyndication.com'], name: 'Google Ads' },
-      { patterns: ['google-analytics.com', 'analytics.js'], name: 'Google Analytics' },
-      { patterns: ['googletagmanager.com'], name: 'Google Tag Manager' },
-      { patterns: ['doubleclick.net'], name: 'DoubleClick' },
-      { patterns: ['connect.facebook.net', 'fbq('], name: 'Meta (Facebook)' },
-      { patterns: ['hotjar.com'], name: 'Hotjar' },
-      { patterns: ['clarity.ms'], name: 'Microsoft Clarity' },
-      { patterns: ['tiktok.com'], name: 'TikTok' }
-    ];
-    
-    scripts.forEach(script => {
-      const src = (script.src || '').toLowerCase();
-      let provider = null;
-      const scriptLabel = '(Script blocked)';
-      
-      // Check src first (most common case)
-      if (src) {
-        for (const { patterns, name } of providerPatterns) {
-          if (patterns.some(pattern => src.includes(pattern))) {
-            provider = name;
-            break;
-          }
-        }
-        
-        // If not found in patterns, use hostname
-        if (!provider) {
-          try {
-            const url = new URL(script.src);
-            provider = url.hostname;
-          } catch (e) {
-            provider = 'Third-party Script';
-          }
-        }
-      }
-      
-      // Check content only if src didn't match
-      if (!provider) {
-        const content = (script.textContent || '').toLowerCase();
-        if (content) {
-          for (const { patterns, name } of providerPatterns) {
-            if (patterns.some(pattern => content.includes(pattern))) {
-              provider = name;
-              break;
-            }
-          }
-        }
-        provider = provider || 'Inline Script';
-      }
-      
-      // Avoid duplicate providers
-      if (provider && !seenProviders.has(provider)) {
-        seenProviders.add(provider);
-        services.push({
-          name: scriptLabel,
-          provider: provider,
-          origin: src ? 'Third-party' : 'First-party'
-        });
-      }
-    });
-    
-    return services;
-  }
-
-  /**
    * Detect user's language
    * @private
    * @returns {string} Language code
@@ -1648,412 +1398,6 @@ class BannerUI {
 }
 
 // ============================================================================
-// COOKIE SCANNER
-// ============================================================================
-
-/**
- * @typedef {Object} DetectedCookie
- * @property {string} name - Cookie name
- * @property {string} value - Cookie value
- * @property {string} domain - Cookie domain
- * @property {string | null} path - Cookie path (cannot be reliably detected client-side, defaults to '/')
- * @property {boolean | null} secure - Whether cookie is secure (cannot be detected client-side)
- * @property {boolean} httpOnly - Whether cookie is HTTP only (always false for client-side detection)
- * @property {string} sameSite - SameSite attribute (assumed 'Lax' when not detectable)
- * @property {number | null} expires - Expiration timestamp (not available client-side)
- * @property {boolean} isFirstParty - Whether cookie is first-party
- * @property {string} category - Detected category (necessary, analytics, marketing, preferences)
- * @property {number} detectedAt - Timestamp when detected
- */
-
-class CookieScanner {
-  constructor() {
-    /** @type {Map<string, DetectedCookie>} */
-    this.detectedCookies = new Map();
-    /** @type {boolean} */
-    this.debugMode = false;
-    /** @type {Object.<string, string>} */
-    this.cookiePatterns = this.initializeCookiePatterns();
-    /** @type {string | null} */
-    this.currentDomain = typeof window !== 'undefined' ? window.location.hostname : null;
-    
-    // Perform initial scan on construction
-    if (typeof document !== 'undefined') {
-      this.performInitialScan();
-    }
-  }
-
-  /**
-   * Perform initial cookie scan
-   * @returns {void}
-   */
-  performInitialScan() {
-    const cookies = this.scanCookies();
-    for (const cookie of cookies) {
-      this.detectedCookies.set(cookie.name, cookie);
-    }
-    console.log(`[CookieScanner] Initial scan complete: ${cookies.length} cookies detected`);
-  }
-
-  /**
-   * Initialize cookie pattern mappings for automatic categorization
-   * @returns {Object.<string, string>} Pattern to category mappings
-   */
-  initializeCookiePatterns() {
-    return {
-      // Analytics cookies
-      '_ga': 'analytics',
-      '_gid': 'analytics',
-      '_gat': 'analytics',
-      '_gat_gtag': 'analytics',
-      '_gac': 'analytics',
-      '_gcl_au': 'analytics', // Google Tag Manager (analytics, not marketing)
-      '_dc_gtm_': 'analytics', // Google Tag Manager throttle cookie
-      '__utma': 'analytics',
-      '__utmb': 'analytics',
-      '__utmc': 'analytics',
-      '__utmt': 'analytics',
-      '__utmz': 'analytics',
-      '_hjid': 'analytics',
-      '_hjFirstSeen': 'analytics', // Hotjar
-      '_hjIncludedInPageviewSample': 'analytics',
-      '_hjIncludedInSessionSample': 'analytics', // Hotjar
-      '_hjAbsoluteSessionInProgress': 'analytics',
-      '_hjSession': 'analytics', // Hotjar
-      '_hjSessionUser_': 'analytics', // Hotjar
-      '_clck': 'analytics', // Microsoft Clarity
-      '_clsk': 'analytics',
-      'CLID': 'analytics', // Microsoft Clarity
-      'SM': 'analytics', // Microsoft - indicates MUID update
-      'ai_session': 'analytics', // Azure Application Insights
-      'ai_user': 'analytics', // Azure Application Insights
-      
-      // Marketing/Advertising cookies
-      '_fbp': 'marketing',
-      '_fbc': 'marketing',
-      'fr': 'marketing', // Facebook
-      '_fr': 'marketing', // Facebook with underscore prefix
-      'tr': 'marketing',
-      '_gcl_aw': 'marketing', // Google Ads
-      '_gcl_dc': 'marketing',
-      'IDE': 'marketing', // Google DoubleClick
-      'DSID': 'marketing',
-      'test_cookie': 'marketing',
-      '__Secure-3PAPISID': 'marketing', // Google
-      '__Secure-3PSID': 'marketing', // Google
-      '__Secure-3PSIDTS': 'marketing', // Google
-      '__Secure-BUCKET': 'marketing', // Google
-      'Secure-ENID': 'marketing', // Google
-      'NID': 'marketing', // Google
-      'AEC': 'marketing', // Google Ads
-      'APISID': 'marketing', // Google
-      'SAPISID': 'marketing', // Google
-      'HSID': 'marketing', // Google
-      'SID': 'marketing', // Google
-      'SSID': 'marketing', // Google
-      'SIDCC': 'marketing', // Google
-      'SEARCH_SAMESITE': 'marketing', // Google
-      'ADS_VISITOR_ID': 'marketing', // Google Ads visitor ID
-      'ps_l': 'marketing', // Google related
-      'S': 'marketing', // Generic marketing cookie
-      '_ttp': 'marketing', // TikTok
-      '_ttp_pixel': 'marketing',
-      '__ttd': 'marketing',
-      'YSC': 'marketing', // YouTube
-      'VISITOR_INFO1_LIVE': 'marketing',
-      'MUID': 'marketing', // Microsoft advertising
-      'ANONCHK': 'marketing', // Microsoft advertising check
-      'wd': 'marketing', // Facebook - window dimensions tracking
-      
-      // Preference cookies
-      'lang': 'preferences',
-      'language': 'preferences',
-      'i18n': 'preferences',
-      'locale': 'preferences',
-      'theme': 'preferences',
-      'timezone': 'preferences',
-      'currency': 'preferences',
-      
-      // Necessary cookies (authentication, session, security)
-      'PHPSESSID': 'necessary',
-      'JSESSIONID': 'necessary',
-      'ASPSESSIONID': 'necessary',
-      'ASP.NET_SessionId': 'necessary', // ASP.NET session
-      '.ASPXANONYMOUS': 'necessary', // ASP.NET anonymous
-      'ASP.NET_ID': 'necessary', // ASP.NET session
-      '.ARRAffinity': 'necessary', // Azure affinity (with dot prefix)
-      'ARRAffinity': 'necessary', // Azure affinity
-      'ARRAffinitySameSite': 'necessary', // Azure affinity SameSite
-      'session': 'necessary',
-      'csrf': 'necessary',
-      'XSRF-TOKEN': 'necessary',
-      '__cfduid': 'necessary', // Cloudflare
-      '__cf_bm': 'necessary',
-      'rs-cmp-consent': 'necessary', // Our own consent cookie
-      'cityidc_': 'necessary', // Custom first-party - store selection
-      'CNC_PSIC': 'necessary', // Custom first-party - store selection
-      'SRM_B': 'necessary' // Microsoft Bing unique ID
-    };
-  }
-
-  /**
-   * Categorize a cookie based on its name
-   * @param {string} cookieName - Cookie name
-   * @returns {string} Category (necessary, analytics, marketing, preferences)
-   */
-  categorizeCookie(cookieName) {
-    // Check exact matches first
-    if (this.cookiePatterns[cookieName]) {
-      return this.cookiePatterns[cookieName];
-    }
-    
-    // Check pattern matches (for cookies with dynamic suffixes)
-    for (const [pattern, category] of Object.entries(this.cookiePatterns)) {
-      if (cookieName.startsWith(pattern)) {
-        return category;
-      }
-    }
-    
-    // Default to necessary for unknown cookies to avoid deleting session/auth cookies
-    // This is a safer default to prevent accidentally logging out users
-    return 'necessary';
-  }
-
-  /**
-   * Check if cookie is first-party or third-party
-   * @param {string} cookieDomain - Cookie domain
-   * @returns {boolean} True if first-party
-   */
-  isFirstPartyCookie(cookieDomain) {
-    if (!this.currentDomain || !cookieDomain) {
-      return true; // Assume first-party if can't determine
-    }
-    
-    // Remove leading dot from domain
-    const cleanDomain = cookieDomain.startsWith('.') ? cookieDomain.substring(1) : cookieDomain;
-    const currentDomain = this.currentDomain;
-    
-    // Check if domains match or cookie domain is a parent domain
-    return currentDomain === cleanDomain || currentDomain.endsWith('.' + cleanDomain) || cleanDomain.endsWith('.' + currentDomain);
-  }
-
-  /**
-   * Parse cookies from document.cookie
-   * @returns {DetectedCookie[]} Array of detected cookies
-   */
-  scanCookies() {
-    if (typeof document === 'undefined') {
-      return [];
-    }
-    
-    const cookies = [];
-    const cookieStrings = document.cookie.split(';');
-    
-    for (const cookieString of cookieStrings) {
-      const trimmed = cookieString.trim();
-      if (!trimmed) continue;
-      
-      const [name, ...valueParts] = trimmed.split('=');
-      const value = valueParts.join('='); // Handle values with = in them
-      
-      if (!name) continue;
-      
-      // Try to get additional cookie info (limited in client-side JS)
-      const category = this.categorizeCookie(name);
-      const isFirstParty = this.isFirstPartyCookie(this.currentDomain);
-      
-      const detectedCookie = {
-        name: name,
-        value: value,
-        domain: this.currentDomain || '',
-        path: '/', // Cannot be reliably detected from client-side JS
-        secure: null, // Cannot be detected from client-side JS
-        httpOnly: false, // Cannot be detected from JS (by definition, httpOnly cookies are not accessible)
-        sameSite: 'Lax', // Assumed default, cannot be reliably detected
-        expires: null, // Not available from document.cookie
-        isFirstParty: isFirstParty,
-        category: category,
-        detectedAt: Date.now()
-      };
-      
-      cookies.push(detectedCookie);
-    }
-    
-    return cookies;
-  }
-
-  /**
-   * Scan cookies on demand (after consent change)
-   * Scans cookies to detect what has been added/changed after user consent
-   * @returns {void}
-   */
-  scanOnConsentChange() {
-    console.log('[CookieScanner] Scanning cookies after consent change...');
-    const currentCookies = this.scanCookies();
-    
-    for (const cookie of currentCookies) {
-      const existingCookie = this.detectedCookies.get(cookie.name);
-      
-      if (!existingCookie) {
-        // New cookie detected
-        this.detectedCookies.set(cookie.name, cookie);
-        console.log(`[CookieScanner] New cookie detected: ${cookie.name} (${cookie.category})`);
-      } else if (existingCookie.value !== cookie.value) {
-        // Cookie value changed
-        this.detectedCookies.set(cookie.name, cookie);
-        console.log(`[CookieScanner] Cookie updated: ${cookie.name}`);
-      }
-    }
-  }
-
-  /**
-   * Enable or disable debug mode for cookie scanning
-   * @param {boolean} enabled - Whether debug mode is enabled
-   * @returns {void}
-   */
-  setDebugMode(enabled) {
-    this.debugMode = enabled;
-    console.log(`[CookieScanner] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Get all detected cookies
-   * @returns {DetectedCookie[]} Array of all detected cookies
-   */
-  getAllCookies() {
-    return Array.from(this.detectedCookies.values());
-  }
-
-  /**
-   * Get cookies by category
-   * @param {string} category - Category to filter by
-   * @returns {DetectedCookie[]} Filtered cookies
-   */
-  getCookiesByCategory(category) {
-    return this.getAllCookies().filter(cookie => cookie.category === category);
-  }
-
-  /**
-   * Get cookie report for backend
-   * @returns {Object} Cookie report
-   */
-  getCookieReport() {
-    const cookies = this.getAllCookies();
-    const report = {
-      timestamp: new Date().toISOString(),
-      domain: this.currentDomain,
-      totalCookies: cookies.length,
-      firstPartyCookies: cookies.filter(c => c.isFirstParty).length,
-      thirdPartyCookies: cookies.filter(c => !c.isFirstParty).length,
-      categories: {
-        necessary: this.getCookiesByCategory('necessary').length,
-        analytics: this.getCookiesByCategory('analytics').length,
-        marketing: this.getCookiesByCategory('marketing').length,
-        preferences: this.getCookiesByCategory('preferences').length
-      },
-      cookies: cookies.map(cookie => ({
-        name: cookie.name,
-        domain: cookie.domain,
-        category: cookie.category,
-        isFirstParty: cookie.isFirstParty,
-        detectedAt: cookie.detectedAt
-      }))
-    };
-    
-    return report;
-  }
-
-  /**
-   * Send cookie report to backend
-   * @param {string} apiUrl - Backend API URL
-   * @param {string} siteId - Site identifier
-   * @returns {Promise<void>}
-   */
-  async sendReportToBackend(apiUrl, siteId) {
-    try {
-      const report = this.getCookieReport();
-      
-      await fetch(`${apiUrl}/v1/cookies/scan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          siteId: siteId,
-          ...report
-        }),
-      });
-      
-      console.log('[CookieScanner] Report sent to backend');
-    } catch (error) {
-      console.error('[CookieScanner] Failed to send report:', error);
-    }
-  }
-
-  /**
-   * Delete cookies by category
-   * @param {string[]} categories - Categories of cookies to delete (e.g., ['analytics', 'marketing'])
-   * @returns {void}
-   */
-  deleteCookiesByCategory(categories) {
-    // Perform a fresh scan to get the latest cookies
-    const currentCookies = this.scanCookies();
-    let processedCount = 0;
-    
-    for (const cookie of currentCookies) {
-      if (categories.includes(cookie.category)) {
-        // Try to delete with various domain and path combinations
-        this.deleteCookie(cookie.name);
-        processedCount++;
-        
-        // Remove from detected cookies
-        this.detectedCookies.delete(cookie.name);
-      }
-    }
-    
-    if (processedCount > 0) {
-      console.log(`[CookieScanner] Attempted to delete ${processedCount} cookies from categories: ${categories.join(', ')}`);
-    }
-  }
-  
-  /**
-   * Delete a single cookie
-   * Attempts multiple domain/path combinations to ensure deletion
-   * @param {string} name - Cookie name
-   * @returns {void}
-   */
-  deleteCookie(name) {
-    // Delete with current path
-    document.cookie = `${name}=; max-age=0; path=/`;
-    
-    // Also try to delete with domain variants (for cross-domain cookies)
-    if (this.currentDomain) {
-      // Delete for current domain
-      document.cookie = `${name}=; max-age=0; path=/; domain=${this.currentDomain}`;
-      
-      // Delete for parent domain with dot prefix
-      document.cookie = `${name}=; max-age=0; path=/; domain=.${this.currentDomain}`;
-      
-      // If subdomain, try parent domain
-      const domainParts = this.currentDomain.split('.');
-      if (domainParts.length > 2) {
-        const parentDomain = domainParts.slice(1).join('.');
-        document.cookie = `${name}=; max-age=0; path=/; domain=${parentDomain}`;
-        document.cookie = `${name}=; max-age=0; path=/; domain=.${parentDomain}`;
-      }
-    }
-  }
-
-  /**
-   * Clear all detected cookies
-   * @returns {void}
-   */
-  clear() {
-    this.detectedCookies.clear();
-  }
-}
-
-// ============================================================================
 // MAIN CMP CLASS
 // ============================================================================
 
@@ -2063,12 +1407,10 @@ class RSCMP {
     this.consentStorage = new ConsentStorage();
     /** @type {ConsentManager} */
     this.consentManager = new ConsentManager(this.consentStorage);
-    /** @type {CookieScanner} */
-    this.cookieScanner = new CookieScanner();
     /** @type {ScriptBlocker} */
     this.scriptBlocker = new ScriptBlocker(this.consentManager);
     /** @type {BannerUI} */
-    this.bannerUI = new BannerUI(this.consentManager, this.cookieScanner, this.scriptBlocker);
+    this.bannerUI = new BannerUI(this.consentManager, this.scriptBlocker);
     /** @type {GoogleConsentMode} */
     this.googleConsentMode = new GoogleConsentMode(this.consentManager);
     /** @type {Config | null} */
@@ -2206,24 +1548,11 @@ class RSCMP {
    * @returns {void}
    */
   applyConsent(categories, shouldReload = false) {
-    // Delete cookies for categories that are not consented
-    const categoriesToDelete = [];
-    if (!categories.analytics) categoriesToDelete.push('analytics');
-    if (!categories.marketing) categoriesToDelete.push('marketing');
-    if (!categories.preferences) categoriesToDelete.push('preferences');
-    
-    if (categoriesToDelete.length > 0) {
-      this.cookieScanner.deleteCookiesByCategory(categoriesToDelete);
-    }
-    
     // Unblock scripts based on consent
     this.scriptBlocker.unblockScripts(categories);
     
     // Update Google Consent Mode
     this.googleConsentMode.update(categories);
-    
-    // Scan cookies after consent change (only in debug mode)
-    this.cookieScanner.scanOnConsentChange();
     
     // Send consent to backend
     if (this.siteId && this.config) {
@@ -2301,60 +1630,7 @@ class RSCMP {
    */
   setDebugMode(enabled) {
     this.debugMode = enabled;
-    this.cookieScanner.setDebugMode(enabled);
     console.log(`[RS-CMP] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Handle new cookie detection
-   * @param {DetectedCookie} cookie - Newly detected cookie
-   * @returns {void}
-   */
-  handleNewCookie(cookie) {
-    this.log('New cookie detected:', cookie.name, 'Category:', cookie.category);
-    
-    // Optionally send report to backend when new cookies are detected
-    // Only send every 10 seconds to avoid flooding the backend
-    if (this.siteId && this.config) {
-      const now = Date.now();
-      if (!this._lastCookieReport || (now - this._lastCookieReport) > 10000) {
-        this._lastCookieReport = now;
-        this.sendCookieReportToBackend();
-      }
-    }
-  }
-
-  /**
-   * Get cookie scanner report
-   * @returns {Object} Cookie report
-   */
-  getCookieReport() {
-    return this.cookieScanner.getCookieReport();
-  }
-
-  /**
-   * Get all detected cookies
-   * @returns {DetectedCookie[]} Array of detected cookies
-   */
-  getDetectedCookies() {
-    return this.cookieScanner.getAllCookies();
-  }
-
-  /**
-   * Send cookie report to backend
-   * @returns {Promise<void>}
-   */
-  async sendCookieReportToBackend() {
-    if (!this.siteId || !this.config) {
-      return;
-    }
-    
-    try {
-      const apiUrl = this.getApiUrl();
-      await this.cookieScanner.sendReportToBackend(apiUrl, this.siteId);
-    } catch (error) {
-      console.error('[RS-CMP] Failed to send cookie report:', error);
-    }
   }
 
   /**
@@ -2367,14 +1643,7 @@ class RSCMP {
       siteId: this.siteId,
       consent: this.consentManager.getConsent(),
       blockedScripts: this.scriptBlocker.blockedScripts.length,
-      bannerVisible: !!this.bannerUI.bannerElement,
-      detectedCookies: this.cookieScanner.getAllCookies().length,
-      cookieCategories: {
-        necessary: this.cookieScanner.getCookiesByCategory('necessary').length,
-        analytics: this.cookieScanner.getCookiesByCategory('analytics').length,
-        marketing: this.cookieScanner.getCookiesByCategory('marketing').length,
-        preferences: this.cookieScanner.getCookiesByCategory('preferences').length
-      }
+      bannerVisible: !!this.bannerUI.bannerElement
     };
   }
 
