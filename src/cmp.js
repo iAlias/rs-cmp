@@ -1103,18 +1103,26 @@ class BannerUI {
     const userLang = this.detectLanguage();
     const translations = this.config.translations[userLang] || this.config.translations['en'] || this.config.translations[Object.keys(this.config.translations)[0]];
 
+    const primaryColor = this.sanitizeColor(this.config.banner.primaryColor, '#0084ff');
+    const buttonTextColor = this.sanitizeColor(this.config.banner.buttonTextColor, '#ffffff');
+
     // Get current consent to populate checkboxes
     const currentConsent = this.consentManager.getConsent();
 
     const modal = document.createElement('div');
     modal.id = 'rs-cmp-customize-modal';
     modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-label', translations.customize);
+    modal.setAttribute('aria-label', translations.customizeTitle || translations.customize);
     
+    const cookiePolicyUrl = this.sanitizeUrl(this.config.banner.cookiePolicyUrl);
+
     modal.innerHTML = `
       <div class="rs-cmp-modal-overlay"></div>
       <div class="rs-cmp-modal-content">
-        <h2>${this.escapeHtml(translations.customize)}</h2>
+        <h2>${this.escapeHtml(translations.customizeTitle || translations.customize)}</h2>
+        ${translations.customizeSubtitle ? `<p class="rs-cmp-modal-subtitle">${this.escapeHtml(translations.customizeSubtitle)}</p>` : ''}
+        ${translations.customizeIntro ? `<h3 class="rs-cmp-modal-intro-title">${this.escapeHtml(translations.customizeIntro)}</h3>` : ''}
+        ${translations.customizeDescription ? `<p class="rs-cmp-modal-intro-desc">${this.escapeHtml(translations.customizeDescription)}</p>` : ''}
         <div class="rs-cmp-categories">
           ${this.config.categories.map((cat) => {
             // Determine if checkbox should be checked based on saved consent
@@ -1137,6 +1145,7 @@ class BannerUI {
           `;
           }).join('')}
         </div>
+        ${cookiePolicyUrl && translations.viewCookiePolicy ? `<div class="rs-cmp-modal-policy-link"><a href="${cookiePolicyUrl}" target="_blank" rel="noopener noreferrer" class="rs-cmp-btn rs-cmp-btn-view-policy">${this.escapeHtml(translations.viewCookiePolicy)}</a></div>` : ''}
         <div class="rs-cmp-modal-buttons">
           <button class="rs-cmp-btn rs-cmp-btn-accept" id="rs-cmp-save-preferences">
             ${this.escapeHtml(translations.save)}
@@ -1208,6 +1217,51 @@ class BannerUI {
           letter-spacing: -0.5px;
         }
         
+        .rs-cmp-modal-subtitle {
+          color: #4a5568;
+          font-size: 14px;
+          line-height: 1.6;
+          margin: 0 0 16px 0;
+        }
+        
+        .rs-cmp-modal-intro-title {
+          color: #2d3748;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 16px 0 8px 0;
+        }
+        
+        .rs-cmp-modal-intro-desc {
+          color: #4a5568;
+          font-size: 14px;
+          line-height: 1.6;
+          margin: 0 0 8px 0;
+        }
+        
+        .rs-cmp-modal-policy-link {
+          text-align: center;
+          margin: 16px 0;
+        }
+        
+        .rs-cmp-btn-view-policy {
+          display: inline-block;
+          padding: 10px 20px;
+          font-size: 14px;
+          font-weight: 600;
+          color: ${primaryColor};
+          background: transparent;
+          border: 2px solid ${primaryColor};
+          border-radius: 8px;
+          text-decoration: none;
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        
+        .rs-cmp-btn-view-policy:hover {
+          background: ${primaryColor};
+          color: ${buttonTextColor};
+        }
+        
         .rs-cmp-categories {
           margin: 24px 0;
         }
@@ -1239,7 +1293,7 @@ class BannerUI {
           width: 20px;
           height: 20px;
           cursor: pointer;
-          accent-color: #2563eb;
+          accent-color: ${primaryColor};
         }
         
         .rs-cmp-category input[type="checkbox"]:disabled {
@@ -1278,14 +1332,14 @@ class BannerUI {
         }
         
         .rs-cmp-modal-buttons button:first-child {
-          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-          color: white;
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+          background: ${primaryColor};
+          color: ${buttonTextColor};
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         .rs-cmp-modal-buttons button:first-child:hover {
-          background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+          filter: brightness(0.9);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
           transform: translateY(-2px);
         }
         
@@ -1394,6 +1448,37 @@ class BannerUI {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Sanitize a URL to prevent javascript: or data: URI injection
+   * @private
+   * @param {string} url - URL to sanitize
+   * @returns {string} Sanitized URL or empty string if invalid
+   */
+  sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+      return this.escapeHtml(trimmed);
+    }
+    return '';
+  }
+
+  /**
+   * Sanitize a CSS color value to prevent CSS injection
+   * @private
+   * @param {string} color - Color value to sanitize
+   * @param {string} fallback - Fallback color
+   * @returns {string} Sanitized color value
+   */
+  sanitizeColor(color, fallback) {
+    if (!color || typeof color !== 'string') return fallback;
+    // Allow hex colors, named colors, rgb/rgba, hsl/hsla
+    if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(color)) return color;
+    if (/^[a-zA-Z]+$/.test(color)) return color;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9,.\s%]+\)$/.test(color)) return color;
+    return fallback;
   }
 }
 
@@ -1694,15 +1779,20 @@ class RSCMP {
           acceptAll: 'Accetta tutto',
           rejectAll: 'Rifiuta tutto',
           customize: 'Personalizza',
+          customizeTitle: 'Scegli le tue preferenze relative ai cookie',
+          customizeSubtitle: 'Questo pannello ti permette di esprimere alcune preferenze relative al trattamento delle tue informazioni personali. Puoi rivedere e modificare le tue scelte in qualsiasi momento.',
           save: 'Salva preferenze',
           close: 'Chiudi',
           privacyPolicy: 'Privacy Policy',
           cookiePolicy: 'Cookie Policy',
+          customizeIntro: 'Le tue preferenze relative al consenso per le tecnologie di tracciamento',
+          customizeDescription: 'Le opzioni disponibili in questa sezione ti permettono di personalizzare le preferenze relative al consenso per qualsiasi tecnologia di tracciamento utilizzata per le finalità descritte di seguito. Per ottenere ulteriori informazioni in merito all\'utilità e al funzionamento di tali strumenti di tracciamento, fai riferimento alla cookie policy. Tieni presente che il rifiuto del consenso per una finalità particolare può rendere le relative funzioni non disponibili.',
+          viewCookiePolicy: 'Visualizza Cookie Policy completa',
           categories: {
-            necessary: { name: 'Necessari', description: 'Cookie essenziali per il funzionamento del sito' },
-            analytics: { name: 'Analitici', description: 'Statistiche di utilizzo per migliorare il sito' },
-            marketing: { name: 'Marketing', description: 'Cookie pubblicitari per annunci personalizzati' },
-            preferences: { name: 'Preferenze', description: 'Le tue impostazioni personalizzate' }
+            necessary: { name: 'Necessari', description: 'Questi strumenti di tracciamento sono strettamente necessari per garantire il funzionamento e la fornitura del servizio che ci hai richiesto e, pertanto, non richiedono il tuo consenso.' },
+            analytics: { name: 'Analitici', description: 'Questi strumenti di tracciamento ci permettono di misurare il traffico e analizzare il tuo comportamento per migliorare il nostro servizio.' },
+            marketing: { name: 'Marketing', description: 'Questi strumenti di tracciamento ci permettono di fornirti contenuti marketing o annunci personalizzati e di misurarne la performance.' },
+            preferences: { name: 'Preferenze', description: 'Questi strumenti di tracciamento ci permettono di migliorare la qualità della tua esperienza utente e consentono le interazioni con piattaforme, reti e contenuti esterni.' }
           }
         },
         en: {
@@ -1711,10 +1801,15 @@ class RSCMP {
           acceptAll: 'Accept All',
           rejectAll: 'Reject All',
           customize: 'Customize',
+          customizeTitle: 'Choose your cookie preferences',
+          customizeSubtitle: 'This panel allows you to express some preferences related to the processing of your personal information. You can review and change your choices at any time.',
           save: 'Save Preferences',
           close: 'Close',
           privacyPolicy: 'Privacy Policy',
           cookiePolicy: 'Cookie Policy',
+          customizeIntro: 'Your preferences for tracking technology consent',
+          customizeDescription: 'The options in this section allow you to customize your consent preferences for any tracking technology used for the purposes described below. For more information about the purpose and operation of these tracking tools, please refer to the cookie policy. Please note that refusing consent for a particular purpose may make related features unavailable.',
+          viewCookiePolicy: 'View Full Cookie Policy',
           categories: {
             necessary: { name: 'Necessary', description: 'Essential cookies' },
             analytics: { name: 'Analytics', description: 'Usage statistics' },
@@ -1751,6 +1846,11 @@ class RSCMP {
       return; // Already shown
     }
 
+    const primaryColor = this.bannerUI.sanitizeColor(
+      this.config && this.config.banner ? this.config.banner.primaryColor : '#0084ff',
+      '#0084ff'
+    );
+
     // Create button
     const button = document.createElement('button');
     button.id = 'rs-cmp-reopen-btn';
@@ -1774,7 +1874,7 @@ class RSCMP {
           width: 48px;
           height: 48px;
           border-radius: 50%;
-          background: #0084ff;
+          background: ${primaryColor};
           color: white;
           border: none;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -1792,7 +1892,7 @@ class RSCMP {
         }
         
         #rs-cmp-reopen-btn:focus {
-          outline: 2px solid #0084ff;
+          outline: 2px solid ${primaryColor};
           outline-offset: 2px;
         }
         

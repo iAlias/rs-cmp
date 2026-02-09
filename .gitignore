@@ -10,6 +10,7 @@ coverage/
 .cache/
 tmp/
 dist/cmp-js.js
+dist/cmp-js.min.js
 demo.html
 test-double-load.html
 test-api-fallback.html
@@ -18,3 +19,4 @@ test-manual-init.html
 test-cookie-deletion.html
 simple-server.js
 consent_logs.jsonl
+node_modules/
