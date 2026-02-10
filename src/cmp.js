@@ -915,7 +915,6 @@ class BannerUI {
           font-size: 13px;
           line-height: 1.6;
           opacity: 0.85;
-          max-width: 800px;
         }
         
         .rs-cmp-policy-links {
