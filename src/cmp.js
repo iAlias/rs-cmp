@@ -750,6 +750,8 @@ class BannerUI {
     this.scriptBlocker = scriptBlocker;
     /** @type {HTMLElement | null} */
     this.bannerElement = null;
+    /** @type {HTMLElement | null} */
+    this.overlayElement = null;
     /** @type {Config | null} */
     this.config = null;
   }
@@ -757,9 +759,10 @@ class BannerUI {
   /**
    * Show the consent banner
    * @param {Config} config - CMP configuration
+   * @param {boolean} [blocking=false] - Whether to show a blocking overlay that prevents site navigation
    * @returns {void}
    */
-  show(config) {
+  show(config, blocking = false) {
     this.config = config;
     
     // Don't show if banner already exists
@@ -770,6 +773,11 @@ class BannerUI {
     // Get user's language
     const userLang = this.detectLanguage();
     const translations = config.translations[userLang] || config.translations['en'] || config.translations[Object.keys(config.translations)[0]];
+
+    // Show blocking overlay if no consent has been given yet
+    if (blocking) {
+      this.showBlockingOverlay();
+    }
 
     // Create banner element
     this.bannerElement = this.createBanner(config, translations);
@@ -789,7 +797,65 @@ class BannerUI {
     if (this.bannerElement) {
       this.bannerElement.remove();
       this.bannerElement = null;
+      this.hideBlockingOverlay();
       this.consentManager.emit('bannerClosed', {});
+    }
+  }
+
+  /**
+   * Show a blocking overlay that blurs the site and prevents navigation
+   * @private
+   * @returns {void}
+   */
+  showBlockingOverlay() {
+    if (this.overlayElement) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'rs-cmp-blocking-overlay';
+
+    // Add overlay styles
+    if (!document.getElementById('rs-cmp-blocking-overlay-styles')) {
+      const style = document.createElement('style');
+      style.id = 'rs-cmp-blocking-overlay-styles';
+      style.textContent = `
+        #rs-cmp-blocking-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+          z-index: 999998;
+          cursor: not-allowed;
+        }
+      `;
+
+      // Apply CSP nonce if available
+      const nonce = getNonce();
+      if (nonce) {
+        style.setAttribute('nonce', nonce);
+      }
+
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(overlay);
+    this.overlayElement = overlay;
+  }
+
+  /**
+   * Hide the blocking overlay
+   * @private
+   * @returns {void}
+   */
+  hideBlockingOverlay() {
+    if (this.overlayElement) {
+      this.overlayElement.remove();
+      this.overlayElement = null;
     }
   }
 
@@ -1545,8 +1611,8 @@ class RSCMP {
         // Block all scripts by default
         this.scriptBlocker.blockScripts();
         
-        // Show banner
-        this.bannerUI.show(this.config);
+        // Show banner with blocking overlay to prevent site navigation
+        this.bannerUI.show(this.config, true);
       }
 
       // Listen for consent updates
