@@ -826,9 +826,9 @@ class BannerUI {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(4px);
-          -webkit-backdrop-filter: blur(4px);
+          background: rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(3px);
+          -webkit-backdrop-filter: blur(3px);
           z-index: 999998;
           cursor: not-allowed;
         }
