@@ -845,6 +845,10 @@ class BannerUI {
 
     document.body.appendChild(overlay);
     this.overlayElement = overlay;
+
+    // Disable page scroll while overlay is active
+    this._previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
   }
 
   /**
@@ -856,6 +860,13 @@ class BannerUI {
     if (this.overlayElement) {
       this.overlayElement.remove();
       this.overlayElement = null;
+
+      // Restore page scroll
+      if (this._previousOverflow != null) {
+        document.body.style.overflow = this._previousOverflow;
+      } else {
+        document.body.style.removeProperty('overflow');
+      }
     }
   }
 
@@ -1723,7 +1734,7 @@ class RSCMP {
    */
   showPreferences() {
     if (this.config) {
-      this.bannerUI.show(this.config);
+      this.bannerUI.show(this.config, true);
     }
   }
 
